@@ -452,64 +452,6 @@ async def manage_cookies(pid: str, fresh: bool = False):
         return result
 
 
-@app.delete("/api/profiles/{pid}/cookies/site/{site}")
-async def delete_site_cookies(pid: str, site: str):
-    """删除某痕迹分组（公司归一名 or 主站名）的全部痕迹 cookie。"""
-    async with _lock_for(pid):
-        async with _CookieCtx(pid) as ctx:
-            victim = set(id(x) for x in cm.cookies_for_tracking_group(ctx.cookies, site))
-            keep = [ck for ck in ctx.cookies if id(ck) not in victim]
-            removed = len(ctx.cookies) - len(keep)
-            if removed:
-                await ctx.write(keep)
-        _invalidate_manage(pid)
-    return {"ok": True, "removed": removed, "site": site}
-
-
-@app.delete("/api/profiles/{pid}/cookies/one")
-async def delete_one_cookie(pid: str, data: dict = Body(...)):
-    """删除单条 cookie（name+domain+path 定位）。"""
-    name, domain, path = data.get("name"), data.get("domain"), data.get("path", "/")
-    def hit(ck):
-        return (ck.get("name") == name and (ck.get("domain") or "") == domain
-                and ck.get("path", "/") == path)
-    async with _lock_for(pid):
-        async with _CookieCtx(pid) as ctx:
-            keep = [ck for ck in ctx.cookies if not hit(ck)]
-            removed = len(ctx.cookies) - len(keep)
-            if removed:
-                await ctx.write(keep)
-        _invalidate_manage(pid)
-    return {"ok": True, "removed": removed}
-
-
-@app.post("/api/profiles/{pid}/cookies/extend")
-async def extend_cookie_api(pid: str, data: dict = Body(...)):
-    """给某条 cookie 延期。days 默认 30；可传 expires_ts 指定绝对时间。"""
-    name, domain, path = data.get("name"), data.get("domain"), data.get("path", "/")
-    days = int(data.get("days", 30))
-    abs_ts = data.get("expires_ts")
-    def hit(ck):
-        return (ck.get("name") == name and (ck.get("domain") or "") == domain
-                and ck.get("path", "/") == path)
-    updated = False
-    async with _lock_for(pid):
-        async with _CookieCtx(pid) as ctx:
-            for ck in ctx.cookies:
-                if hit(ck):
-                    if abs_ts:
-                        ck["expires"] = float(abs_ts)
-                    else:
-                        ck["expires"] = cm.extend_cookie(ck, days)["expires"]
-                    updated = True
-            if updated:
-                await ctx.write(ctx.cookies)
-        _invalidate_manage(pid)
-    if not updated:
-        raise HTTPException(404, "未找到该 cookie")
-    return {"ok": True, "days": days}
-
-
 @app.delete("/api/profiles/{pid}/cookies/tracking")
 async def clear_tracking_cookies(pid: str):
     """一键清空痕迹池：仅删除【无锚点站点】的 cookie，保留含锚点站点的全部 cookie（含其痕迹）。"""
@@ -624,6 +566,10 @@ class ProxyBody(BaseModel):
     ip_version: str = "ipv4"
     check_duplicate: bool = True
 
+class ImportTextBody(BaseModel):
+    text: str = ""
+    check_duplicate: bool = True
+
 
 @app.get("/api/proxies")
 def api_list_proxies():
@@ -658,37 +604,6 @@ def api_update_proxy(proxy_id: str, body: ProxyBody):
 def api_delete_proxy(proxy_id: str):
     from fingerprint import proxy_manager as pm
     return {"ok": pm.delete_proxy(proxy_id)}
-
-
-@app.post("/api/proxies/{proxy_id}/test")
-def api_test_proxy(proxy_id: str):
-    from fingerprint import proxy_manager as pm
-    return pm.test_proxy_connectivity(proxy_id)
-
-
-class BindBody(BaseModel):
-    pids: list = []
-
-
-@app.post("/api/proxies/{proxy_id}/bind")
-def api_bind_proxy(proxy_id: str, body: BindBody):
-    from fingerprint import proxy_manager as pm
-    r = pm.bind_windows(proxy_id, body.pids)
-    if not r:
-        return JSONResponse({"detail": "代理不存在"}, status_code=404)
-    return {"ok": True, "proxy": r}
-
-
-@app.post("/api/proxies/{proxy_id}/unbind/{pid}")
-def api_unbind_proxy(proxy_id: str, pid: str):
-    from fingerprint import proxy_manager as pm
-    pm.unbind_window(proxy_id, pid)
-    return {"ok": True}
-
-
-class ImportTextBody(BaseModel):
-    text: str = ""
-    check_duplicate: bool = True
 
 
 @app.post("/api/proxies/import-text")
@@ -797,37 +712,25 @@ async def query_ip_live(payload: dict = Body(...)):
     )
     return {"ip_info": result}
 
-@app.get("/api/utils/ip-query-direct")
-async def query_direct_ip():
-    result = netprobe.query_ip()
-    return {"ip_info": result}
-
-# ═══════════════════════════════════════
-# Agent LLM 代理（Mini-Agent 通过后端调 LLM，API key 不暴露给前端）
-# 密钥来源优先级: 进程环境变量 → 项目根 .env;严禁把真实密钥写进代码默认值
-# ═══════════════════════════════════════
-import os as _os
-
-def _dotenv_get(key: str, default: str = "") -> str:
-	try:
-		f = Path(__file__).resolve().parent.parent / ".env"
-		if f.exists():
-			for line in f.read_text(encoding="utf-8").splitlines():
-				line = line.strip()
-				if line.startswith(f"{key}="):
-					return line.partition("=")[2].strip().strip('"').strip("'")
-	except Exception:
-		pass
-	return default
-
-_LLM_API_KEY = _os.environ.get("DEEPSEEK_API_KEY") or _dotenv_get("DEEPSEEK_API_KEY")
-_LLM_BASE_URL = _os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1/chat/completions")
-_LLM_MODEL = _os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
-# A12: 视觉模型占位——空字符串=视觉未启用；未来 OpenMedia 统一 API key 分发后填具体模型
-_VISION_MODEL = _os.environ.get("OPENMEDIA_VISION_MODEL", "")
-_VISION_API_KEY = _os.environ.get("OPENMEDIA_VISION_API_KEY", "")
-_VISION_BASE_URL = _os.environ.get("OPENMEDIA_VISION_BASE_URL", "")
-_VISION_PROVIDER = _os.environ.get("OPENMEDIA_VISION_PROVIDER", "openai")  # openai|anthropic
+@app.post("/api/utils/open-downloads")
+async def open_downloads(payload: dict = Body(default={})):
+    """在资源管理器中打开下载目录。
+    payload: {pid: "窗口ID"} 打开该窗口的下载目录;{which: "browser"} 打开浏览器下载根目录。"""
+    pid = str(payload.get("pid") or "")
+    which = str(payload.get("which") or "agent")
+    if which == "browser":
+        root = profiles.get_settings().get("browser_download_root") or profiles.DEFAULT_BROWSER_DL_ROOT
+    else:
+        root = str(Path.home() / "Downloads" / "Gemini-API Download")
+    d = Path(root) / pid if pid else Path(root)
+    d.mkdir(parents=True, exist_ok=True)
+    if sys.platform == "win32":
+        os.startfile(str(d))  # noqa: S606
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", str(d)])
+    else:
+        subprocess.Popen(["xdg-open", str(d)])
+    return {"ok": True, "dir": str(d)}
 
 @app.get("/api/profiles/{pid}/welcome-data")
 async def welcome_data(pid: str):

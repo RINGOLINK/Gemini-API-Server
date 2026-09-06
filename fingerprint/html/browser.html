@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>指纹浏览器管理 - OpenMedia</title><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0e0f12"><script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw-pwa.js").catch(function(){});}</script><style>
+﻿<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>指纹浏览器管理 - Gemini-API-Server</title><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0e0f12"><script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw-pwa.js").catch(function(){});}</script><style>
 :root{--bg:#0e0f12;--surface:#16181d;--surface2:#1c1e25;--brand:#6d28d9;--text:#e0e1e6;--muted:#a1a1aa;--border:rgba(255,255,255,.06);--green:#22c55e;--red:#ef4444}
 *{margin:0;padding:0;box-sizing:border-box}
 /* ── om-scrollbar: 切换零偏移 + 隐形滚动条 ──
@@ -174,9 +174,7 @@ select.csel-hidden{position:absolute!important;opacity:0!important;pointer-event
 <div class="top"><a href="/" class="back">← 首页</a><h1>指纹浏览器管理</h1></div>
 <div class="pagetabs">
   <button class="ptab on" id="ptabWin" onclick="switchTab('win')">🪟 窗口管理</button>
-  <button class="ptab" id="ptabDl" onclick="switchTab('dl')">⬇ 下载中心</button>
   <button class="ptab" id="ptabProxy" onclick="switchTab('proxy')">🔌 代理中心</button>
-  <button class="ptab" id="ptabSkills" onclick="switchTab('skills')">🎛 Skill 市场</button>
 </div>
 </div>
 <div id="tabWindows" class="om-tab">
@@ -193,57 +191,6 @@ select.csel-hidden{position:absolute!important;opacity:0!important;pointer-event
 </div>
 <div class="om-scroll"><div class="grid" id="grid"></div></div>
 </div>
-<div id="tabDl" style="display:none" class="om-tab">
-<div class="om-fixed">
-  <div class="dl-head">
-    <button class="btn btn-ghost" onclick="loadDlCenter()">🔄 刷新</button>
-    <button class="btn btn-ghost" onclick="openAgentDlDir()">📂 打开Agent下载目录</button>
-    <button class="btn btn-ghost" onclick="openBrowserDlDir()">📂 打开浏览器下载目录</button>
-    <span class="sp"></span>
-    <span style="font-size:.78rem;color:var(--muted)" id="dlCount"></span>
-  </div>
-  <div class="dl-policy">
-    <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="var b=document.getElementById('dlSetBody');b.style.display=b.style.display==='none'?'':'none'">
-      <span style="font-weight:600">⚙ 下载目录设置</span>
-      <span style="font-size:.72rem;color:var(--muted)">点击展开/收起</span>
-    </div>
-    <div id="dlSetBody" style="display:none;margin-top:10px">
-      <div style="font-size:.78rem;color:var(--muted);margin-bottom:10px;line-height:1.7">
-        两条下载通道相互隔离：<b style="color:var(--text)">Agent 下载</b>（Mini-Agent 抓取/导出的文件）固定落项目 downloads/{窗口ID}/；
-        <b style="color:var(--text)">浏览器下载</b>（你在窗口里手动点击下载）落下方配置的目录/{窗口ID}/，修改后<b style="color:#f59e0b">下次启动窗口生效</b>。
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span style="font-size:.8rem;color:var(--muted);white-space:nowrap">Agent 目录</span>
-        <input id="dlAgentRoot" readonly style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--muted);font-size:.78rem">
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:.8rem;color:var(--muted);white-space:nowrap">浏览器目录</span>
-        <input id="dlBrowserRoot" style="flex:1;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:.78rem;outline:none">
-        <button class="btn-sm dim" onclick="saveBrowserDlRoot()">保存</button>
-        <button class="btn-sm dim" onclick="resetBrowserDlRoot()">恢复默认</button>
-      </div>
-      <div id="dlSetMsg" style="font-size:.75rem;margin-top:6px"></div>
-    </div>
-  </div>
-  <div class="dl-policy" id="dlPolicy">
-    <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="var b=document.getElementById('dlPolicyBody');b.style.display=b.style.display==='none'?'':'none'">
-      <span style="font-weight:600">ℹ 下载策略</span>
-      <span style="font-size:.72rem;color:var(--muted)">点击展开/收起</span>
-    </div>
-    <div id="dlPolicyBody" style="display:none;margin-top:8px;font-size:.78rem;color:var(--muted);line-height:1.8">
-      本页展示 <span style="color:var(--brand)">Agent 下载目录</span>（项目 downloads/{窗口ID}/）的内容；
-      窗口内手动下载落「浏览器下载目录」（见上方 ⚙ 设置），两者相互隔离。
-    </div>
-  </div>
-  <div id="dlStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
-</div>
-<div class="om-scroll">
-  <table class="dltable"><thead><tr>
-    <th></th><th>文件名</th><th>窗口</th><th>来源</th><th>大小</th><th>时间</th><th>操作</th>
-  </tr></thead><tbody id="dlTbody"></tbody></table>
-  <div class="dl-empty" id="dlEmpty" style="display:none">还没有任何下载文件<br><span style="font-size:.78rem">Agent 下载与窗口内手动下载都会自动落到这里</span></div>
-</div>
-</div>
 <div id="tabProxy" style="display:none" class="om-tab">
 <div class="om-fixed">
   <div class="dl-head">
@@ -258,19 +205,6 @@ select.csel-hidden{position:absolute!important;opacity:0!important;pointer-event
 <div id="proxyTabBody" style="display:grid;grid-template-columns:1fr 1fr;gap:12px"></div>
 </div>
 </div>
-</div>
-<div id="tabSkills" style="display:none" class="om-tab">
-<div class="om-fixed">
-  <div class="dl-head">
-    <button class="btn btn-primary" id="skImportBtn2">📥 导入 Skill JSON</button>
-    <span class="sp"></span>
-    <button class="btn btn-ghost" onclick="skRefresh2()">🔄 刷新列表</button>
-  </div>
-</div>
-<div class="om-scroll">
-<div id="skList2" style="display:flex;flex-direction:column;gap:10px;max-width:760px"><div style="color:var(--muted)">加载中…</div></div>
-</div>
-<input type="file" id="skFileInp2" accept=".json" style="display:none">
 </div>
 <div class="modal-overlay" id="modal"><div class="modal"><div class="modal-head"><h2 id="modalTitle">新建</h2><button class="btn-sm dim" id="copyIdBtn" style="display:none" onclick="copyWindowId()">复制ID</button><button class="btn-sm dim" style="margin-left:auto" onclick="closeModal()" title="关闭">✕</button></div><div class="modal-body"><div id="editorContent"></div></div><div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveProfile()">保存</button></div></div></div>
 
@@ -671,7 +605,6 @@ async function saveProfile(){
   else{await fetch(API+"/profiles",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})}
   closeModal();refresh();
 }
-async function openDownloads(){try{await fetch(API+"/utils/open-downloads",{method:"POST"})}catch(e){}}
 renderSelectBar();refresh();setInterval(refresh,5000);
 
 // ── Cookie 管理面板 ──
@@ -896,201 +829,14 @@ function openDlDir(pid){
 }
 
 // ── 下载目录设置 ──
-function openAgentDlDir(){
-  fetch("/api/utils/open-downloads", {method:"POST", headers:{"Content-Type":"application/json"}, body: "{}"});
-}
-function openBrowserDlDir(){
-  fetch("/api/utils/open-downloads", {method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({which: "browser"})});
-}
-async function loadDlSettings(){
-  try{
-    var r = await fetch("/api/settings/downloads");
-    var d = await r.json();
-    if(d.ok){
-      document.getElementById("dlAgentRoot").value = d.agent_root;
-      document.getElementById("dlBrowserRoot").value = d.browser_root;
-      document.getElementById("dlBrowserRoot").dataset.def = d.default_browser_root;
-    }
-  }catch(e){}
-}
-async function saveBrowserDlRoot(){
-  var v = document.getElementById("dlBrowserRoot").value.trim();
-  var msg = document.getElementById("dlSetMsg");
-  var r = await fetch("/api/settings/downloads", {method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({browser_root: v})});
-  var d = await r.json();
-  if(d.ok){
-    msg.style.color = "#4ade80";
-    msg.textContent = "✓ 已保存，下次启动窗口生效";
-  } else {
-    msg.style.color = "#f87171";
-    msg.textContent = "✗ " + (d.error || "保存失败");
-  }
-  setTimeout(function(){ msg.textContent = ""; }, 4000);
-}
-function resetBrowserDlRoot(){
-  document.getElementById("dlBrowserRoot").value = document.getElementById("dlBrowserRoot").dataset.def || "";
-  saveBrowserDlRoot();
-}
 
 // ── 页签 + 下载中心 ──
 function switchTab(t){
-  document.getElementById("tabWindows").style.display = (t === "win" ? "" : "none");
-  document.getElementById("tabDl").style.display = (t === "dl" ? "" : "none");
-  document.getElementById("tabProxy").style.display = (t === "proxy" ? "" : "none");
-  var skTab = document.getElementById("tabSkills");
-  if(skTab) skTab.style.display = (t === "skills" ? "" : "none");
-  document.getElementById("ptabWin").className = "ptab" + (t === "win" ? " on" : "");
-  document.getElementById("ptabDl").className = "ptab" + (t === "dl" ? " on" : "");
-  document.getElementById("ptabProxy").className = "ptab" + (t === "proxy" ? " on" : "");
-  document.getElementById("ptabSkills").className = "ptab" + (t === "skills" ? " on" : "");
-  if(t === "dl"){ loadDlCenter(); loadDlSettings(); }
-  if(t === "proxy"){ renderProxyMgr(); }
-  if(t === "skills"){ setTimeout(skRefresh2, 50); }   // 切到市场页时懒加载
-}
-
-// ── P3-16: Skill 市场（管理台端，与 sidepanel 共用同一后端，天然同步）──
-function _esc2(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-async function skRefresh2(){
-  var el = document.getElementById("skList2");
-  if(!el) return;
-  el.innerHTML = '<div style="color:var(--muted)">加载中…</div>';
-  try{
-    var r = await fetch(API + "/api/skills/list");
-    var d = await r.json();
-    if(!d || !d.ok){ el.innerHTML = '<div style="color:var(--red)">列表获取失败</div>'; return; }
-    if(!d.skills.length){ el.innerHTML = '<div style="color:var(--muted)">（无 Skill，可导入 JSON）</div>'; return; }
-    var h = '';
-    for(var i=0;i<d.skills.length;i++){
-      var s = d.skills[i];
-      var on = s.enabled !== false;
-      h += '<div style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px">'
-        + '<div style="flex:1"><div style="font-weight:600">' + _esc2(s.name) + ' <span style="color:var(--muted);font-weight:400">v' + _esc2(s.version || "?") + '</span></div>'
-        + '<div style="font-size:.8rem;color:var(--muted)">' + _esc2(s.description || '') + '</div></div>'
-        + (on ? '' : '<span style="color:var(--muted);font-size:.78rem">已停用</span>')
-        + '<button class="btn btn-ghost" onclick="skToggle2(\'' + _esc2(s.name) + '\')">' + (on ? '停用' : '启用') + '</button>'
-        + '<button class="btn btn-ghost" onclick="skExport2(\'' + _esc2(s.name) + '\')">导出</button>'
-        + '<button class="btn btn-ghost" style="color:var(--red)" onclick="skDel2(\'' + _esc2(s.name) + '\')">删除</button>'
-        + '</div>';
-    }
-    el.innerHTML = h;
-  }catch(e){ el.innerHTML = '<div style="color:var(--red)">加载失败: ' + _esc2(e.message || e) + '</div>'; }
-}
-function skToggle2(name){
-  fetch(API + "/api/skills/toggle", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({name: name})})
-    .then(function(r){ return r.json(); }).then(function(){ skRefresh2(); });
-}
-async function skExport2(name){
-  var r = await fetch(API + "/api/skills/load", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({name: name})});
-  var d = await r.json();
-  if(d && d.ok && d.skill){
-    var blob = new Blob([JSON.stringify(d.skill, null, 2)], {type:"application/json"});
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = d.filename || (name + ".json");
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-}
-function skDel2(name){
-  if(!confirm("确定删除 Skill: " + name + " ？")) return;
-  fetch(API + "/api/skills/delete", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({name: name})})
-    .then(function(r){ return r.json(); }).then(function(){ skRefresh2(); });
-}
-(function(){
-  var importBtn = document.getElementById("skImportBtn2");
-  var fileInp = document.getElementById("skFileInp2");
-  if(importBtn) importBtn.addEventListener("click", function(){ if(fileInp) fileInp.click(); });
-  if(fileInp) fileInp.addEventListener("change", async function(ev){
-    var f = ev.target.files && ev.target.files[0];
-    if(!f) return;
-    try{
-      var skill = JSON.parse(await f.text());
-      var r = await fetch(API + "/api/skills/import", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({skill: skill})});
-      var d = await r.json();
-      if(d && d.ok){ skRefresh2(); } else { alert("导入失败: " + (d.detail || JSON.stringify(d))); }
-    }catch(e){ alert("导入失败: " + _esc2(e.message || e)); }
-    ev.target.value = "";
-  });
-})();
-function dlFmtSize(b){
-  if(b == null) return "";
-  if(b < 1024) return b + " B";
-  if(b < 1048576) return (b/1024).toFixed(1) + " KB";
-  return (b/1048576).toFixed(1) + " MB";
-}
-var DL_KIND_ICON = {markdown:"📝", text:"📄", image:"🖼", video:"🎬", audio:"🎵", other:"📦"};
-async function loadDlCenter(){
-  var tb = document.getElementById("dlTbody");
-  tb.innerHTML = "";
-  try{
-    var r = await fetch("/api/files/list-all");
-    var d = await r.json();
-    var files = d.files || [];
-    document.getElementById("dlCount").textContent = files.length ? ("共 " + files.length + " 个文件") : "";
-    document.getElementById("dlEmpty").style.display = files.length ? "none" : "";
-    // 分窗口统计
-    var stats = {};
-    files.forEach(function(f){
-      var k = f.pid;
-      if(!stats[k]) stats[k] = {name: f.profile_name || f.pid, pid: f.pid, count: 0, bytes: 0};
-      stats[k].count++;
-      stats[k].bytes += f.bytes || 0;
-    });
-    var stBox = document.getElementById("dlStats");
-    stBox.innerHTML = "";
-    Object.keys(stats).forEach(function(k){
-      var s = stats[k];
-      var d2 = document.createElement("div");
-      d2.className = "dl-stat";
-      var sp = document.createElement("span");
-      sp.textContent = s.name + "：";
-      var b = document.createElement("b");
-      b.textContent = s.count + " 个文件 · " + dlFmtSize(s.bytes);
-      var btn = document.createElement("button");
-      btn.textContent = "📂 目录";
-      btn.addEventListener("click", function(){
-        fetch("/api/utils/open-downloads", {method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({pid: s.pid})});
-      });
-      d2.appendChild(sp); d2.appendChild(b); d2.appendChild(btn);
-      stBox.appendChild(d2);
-    });
-    files.forEach(function(f){
-      var tr = document.createElement("tr");
-      var tdIco = document.createElement("td");
-      tdIco.textContent = DL_KIND_ICON[f.kind] || "📦";
-      var tdNm = document.createElement("td"); tdNm.className = "nm"; tdNm.textContent = f.name; tdNm.title = f.name;
-      var tdWin = document.createElement("td"); tdWin.textContent = f.profile_name || f.pid;
-      var tdSrc = document.createElement("td");
-      var srcSp = document.createElement("span"); srcSp.className = "src";
-      srcSp.textContent = f.source === "agent" ? "Agent" : "手动";
-      tdSrc.appendChild(srcSp);
-      var tdSz = document.createElement("td"); tdSz.textContent = dlFmtSize(f.bytes);
-      var tdTm = document.createElement("td"); tdTm.textContent = new Date(f.mtime*1000).toLocaleString();
-      var tdOps = document.createElement("td"); tdOps.className = "ops";
-      var bOpen = document.createElement("button"); bOpen.textContent = "📂 目录";
-      bOpen.addEventListener("click", function(){
-        fetch("/api/utils/open-downloads", {method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({pid: f.pid})});
-      });
-      var bDl = document.createElement("button"); bDl.textContent = "⬇ 下载";
-      bDl.addEventListener("click", function(){
-        var a = document.createElement("a");
-        a.href = "/api/files/raw?pid=" + encodeURIComponent(f.pid) + "&name=" + encodeURIComponent(f.name);
-        a.download = f.name;
-        document.body.appendChild(a); a.click(); a.remove();
-      });
-      tdOps.appendChild(bOpen); tdOps.appendChild(bDl);
-      tr.appendChild(tdIco); tr.appendChild(tdNm); tr.appendChild(tdWin);
-      tr.appendChild(tdSrc); tr.appendChild(tdSz); tr.appendChild(tdTm); tr.appendChild(tdOps);
-      tb.appendChild(tr);
-    });
-  }catch(e){
-    document.getElementById("dlEmpty").style.display = "";
-    document.getElementById("dlEmpty").textContent = "加载失败：无法连接后端";
-  }
+document.getElementById("tabWindows").style.display = (t === "win" ? "" : "none");
+document.getElementById("tabProxy").style.display = (t === "proxy" ? "" : "none");
+document.getElementById("ptabWin").className = "ptab" + (t === "win" ? " on" : "");
+document.getElementById("ptabProxy").className = "ptab" + (t === "proxy" ? " on" : "");
+if(t === "proxy"){ renderProxyMgr(); }
 }
 
 // ── 分组管理 ──

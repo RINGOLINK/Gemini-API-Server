@@ -1,6 +1,6 @@
-{
-  "name": "OpenMedia",
-  "short_name": "OpenMedia",
+﻿{
+  "name": "Gemini-API-Server",
+  "short_name": "Gemini-API-Server",
   "start_url": "/browser",
   "scope": "/",
   "display": "standalone",

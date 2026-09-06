@@ -1,4 +1,4 @@
-"""指纹浏览器模块入口 —— Schema v2 启动管线"""
+﻿"""指纹浏览器模块入口 —— Schema v2 启动管线"""
 import asyncio, json, shutil
 from pathlib import Path
 from patchright.async_api import async_playwright
@@ -255,7 +255,7 @@ class FingerprintBrowser:
         # 每次启动强制设置，覆盖 Chromium 默认行为；不影响 Playwright download 事件。
         try:
             _sf = STORAGE_ROOT / "settings.json"
-            _broot = str(Path.home() / "Downloads" / "OpenMedia Download")
+            _broot = str(Path.home() / "Downloads" / "Gemini-API Download")
             if _sf.exists():
                 try:
                     _broot = json.loads(_sf.read_text(encoding="utf-8")).get("browser_download_root") or _broot

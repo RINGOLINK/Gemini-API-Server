@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OpenMedia 启动器</title>
+<title>Gemini-API-Server 启动器</title>
 <style>
 :root{--bg:#0e0f12;--surface:#16181d;--surface2:#1c1e25;--brand:#8b5cf6;--text:#e0e1e6;--muted:#71717a;--border:rgba(255,255,255,.06);--green:#22c55e}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -26,12 +26,12 @@ h1{font-size:1.75rem;font-weight:700;letter-spacing:-.01em;margin-bottom:20px}
 </style>
 </head>
 <body>
-<h1>OpenMedia 启动器</h1>
+<h1>Gemini-API-Server 启动器</h1>
 <div class="status-grid" id="statusGrid"></div>
 <div class="actions">
   <button class="btn btn-primary" onclick="api('start/all')">▶ 启动全部</button>
   <button class="btn btn-outline" onclick="api('stop/all')">■ 停止全部</button>
-  <button class="btn btn-outline" onclick="window.open('http://127.0.0.1:5555','_blank')">🌐 OpenMedia 面板</button>
+  
   <button class="btn btn-outline" onclick="window.open('http://127.0.0.1:19119','_blank')">🧠 Hermes WebUI</button>
   <button class="btn btn-util" onclick="api('clear/cache-ui')">🧹 清 UI 缓存</button>
   <button class="btn btn-util" onclick="api('clear/cache-py')">🐍 清 Python 缓存</button>

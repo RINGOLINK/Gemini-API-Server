@@ -1,4 +1,4 @@
-"""账号 profile 元数据管理 —— Schema v2（序号 + 随机ID 双标识）"""
+﻿"""账号 profile 元数据管理 —— Schema v2（序号 + 随机ID 双标识）"""
 import json, shutil, time, secrets, string
 from pathlib import Path
 from datetime import datetime
@@ -185,7 +185,7 @@ def delete(pid):
 
 GROUPS_FILE = "groups.json"
 SETTINGS_FILE = "settings.json"
-DEFAULT_BROWSER_DL_ROOT = str(Path.home() / "Downloads" / "OpenMedia Download")
+DEFAULT_BROWSER_DL_ROOT = str(Path.home() / "Downloads" / "Gemini-API Download")
 
 
 def get_settings() -> dict:
