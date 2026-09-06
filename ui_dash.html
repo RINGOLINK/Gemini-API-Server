@@ -1,0 +1,1349 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Gemini-API 主界面</title>
+<style>
+/* ── 设计令牌(Linear 式深色工具美学 + 品牌紫)── */
+:root{
+  /* ── OpenMedia 视觉变量(一比一) ── */
+  --bg:#0e0f12; --surface:#16181d; --surface2:#1c1e25; --brand:#6d28d9;
+  --text:#e0e1e6; --muted:#a1a1aa; --border:rgba(255,255,255,.06);
+  --green:#22c55e; --red:#ef4444; --orange:#f59e0b; --violet:#c4b5fd;
+  /* 兼容别名(现有组件引用) */
+  --primary:var(--brand); --primary-hover:#5b21b6; --primary-soft:rgba(109,40,217,.14);
+  --surface-2:var(--surface2); --surface-3:#20242c; --bg-2:#10111699;
+  --hairline:var(--border); --hairline-strong:rgba(255,255,255,.12);
+  --text-2:var(--muted); --text-3:#6b727e;
+  --focus:rgba(109,40,217,.35);
+  --r-sm:6px; --r-md:8px; --r-lg:14px;
+  --shadow-card:0 1px 2px rgba(0,0,0,.35), 0 6px 20px rgba(0,0,0,.10);
+  --shadow-lift:0 2px 4px rgba(0,0,0,.4), 0 14px 36px rgba(0,0,0,.22), 0 0 0 1px var(--hairline-strong);
+  --ease:cubic-bezier(.16,1,.3,1);
+  --font:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:"Cascadia Mono",Consolas,"JetBrains Mono",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+/* 自定义滚动条(OpenMedia 隐形滚动条) */
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner{background:transparent}
+*::-webkit-scrollbar-thumb{background:transparent;border-radius:5px;border:2px solid transparent;background-clip:content-box;transition:background .25s ease}
+*::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.18);background-clip:content-box;border:2px solid transparent}
+*::-webkit-scrollbar-thumb:active{background:rgba(255,255,255,.30);background-clip:content-box;border:2px solid transparent}
+/* 文本选中(品牌色) */
+::selection{background:rgba(109,40,217,.45);color:#fff}
+html,body{height:100%}
+body{font-size:15px;background:var(--bg);color:var(--text);font-family:var(--font);display:flex;flex-direction:column;overflow:hidden;-webkit-font-smoothing:antialiased}
+.om-shell{width:100%;max-width:1320px;margin:0 auto;padding:20px 28px 0;display:flex;flex-direction:column;flex:1;min-height:0}
+.om-scroll{flex:1;min-height:120px;overflow-y:auto;padding:8px 20px 28px}
+/* 顶部栏 */
+.top{display:flex;align-items:center;gap:16px;margin-bottom:22px;flex-shrink:0;padding-bottom:18px;border-bottom:1px solid var(--hairline)}
+.top .logo{width:42px;height:42px;border-radius:11px;background:linear-gradient(135deg,#7c3aed,#5b21b6);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:19px;letter-spacing:-.5px;flex-shrink:0}
+.top h1{font-size:21px;font-weight:600;letter-spacing:-.4px}
+.head-state{font-size:13px;color:var(--text-2);margin-left:8px}
+.head-state .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:7px;vertical-align:1px}
+.nav{display:flex;gap:4px;margin-left:auto;background:var(--surface);border:1px solid var(--hairline);border-radius:12px;padding:4px}
+.nav .pill{border:none;background:transparent;color:var(--text-2);border-radius:9px;padding:9px 22px;font-size:14px;font-family:var(--font);cursor:pointer;transition:all .18s var(--ease)}
+.nav .pill:hover{color:var(--text);background:var(--surface-2)}
+.nav .pill.on{background:var(--primary);color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.page{display:none}
+.page.active{display:block;animation:pageIn .28s var(--ease)}
+@keyframes pageIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* ── 看板 ── */
+.dash-r{display:grid;gap:12px;margin-bottom:14px}
+.r3{grid-template-columns:repeat(3,1fr)}
+.r4{grid-template-columns:repeat(4,1fr)}
+.r2{grid-template-columns:repeat(2,1fr)}
+.kpi{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:20px 22px;min-height:118px;display:flex;flex-direction:column;justify-content:flex-start;transition:border-color .2s var(--ease),box-shadow .2s var(--ease);position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,transparent,rgba(124,92,255,.4),transparent);opacity:0;transition:opacity .25s}
+.kpi:hover{border-color:var(--hairline-strong);box-shadow:var(--shadow-lift)}
+.kpi:hover::before{opacity:1}
+.kpi .k{font-size:11px;color:var(--text-3);letter-spacing:.05em;margin-bottom:12px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .v{font-size:30px;font-weight:600;letter-spacing:-1px;line-height:1.05;font-variant-numeric:tabular-nums}
+.kpi .v.green{color:var(--green)}.kpi .v.red{color:var(--red)}.kpi .v.violet{color:var(--violet)}
+.kpi .s{font-size:11px;color:var(--text-3);margin-top:10px;line-height:1.4}
+/* 大卡(第1行/第5行):更高、更大 value、居中布局 */
+.kpi.lg{min-height:170px;padding:26px 28px;justify-content:center;text-align:left}
+.kpi.lg .k{margin-bottom:14px}
+.kpi.lg .v{font-size:38px;letter-spacing:-1.4px}
+.kpi.lg .s{font-size:12px;margin-top:12px}
+/* 第5行 两张大卡内部布局 */
+.api-card .api-rows{display:flex;flex-direction:column;gap:12px;margin-top:4px}
+.api-card .ap-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.api-card .ap-lab{font-size:11px;color:var(--text-3);width:76px;flex-shrink:0;text-transform:uppercase;letter-spacing:.04em}
+.api-card .ap-val{font-family:var(--mono);font-size:13px;color:var(--text-2);word-break:break-all;flex:1;min-width:0}
+.api-card .ap-models{display:flex;gap:6px;flex-wrap:wrap}
+.token-grid{display:flex;gap:24px;margin-top:6px}
+.token-cell{flex:1}.token-cell .t-k{font-size:11px;color:var(--text-3);letter-spacing:.05em;margin-bottom:8px;text-transform:uppercase}
+.token-cell .t-v{font-size:34px;font-weight:700;letter-spacing:-1.2px;font-variant-numeric:tabular-nums;color:var(--text)}
+.token-cell .t-v.green{color:var(--green)}.token-cell .t-v.violet{color:var(--violet)}
+.icon-btn{background:transparent;border:1px solid var(--hairline);border-radius:6px;color:var(--text-3);padding:3px 8px;font-size:11px;font-family:var(--font);cursor:pointer;transition:all .15s var(--ease)}
+.icon-btn:hover{border-color:var(--hairline-strong);color:var(--text)}
+/* ── 日志 ── */
+.logpanel{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:18px}
+.log-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.log-head .pill{font-size:12px;padding:6px 16px}
+.logtabs{display:flex;gap:4px;background:var(--bg-2);border:1px solid var(--hairline);border-radius:8px;padding:3px;width:max-content}
+.logtabs .pill{border:none;background:transparent;color:var(--text-2);border-radius:6px;padding:6px 16px;font-size:12px;font-family:var(--font);cursor:pointer;transition:all .18s var(--ease)}
+.logtabs .pill:hover{color:var(--text)}
+.logtabs .pill.on{background:var(--primary);color:#fff}
+.logs{background:var(--bg);border:1px solid var(--hairline);border-radius:var(--r-md);height:240px;overflow-y:auto;padding:10px 14px;font-family:var(--mono);font-size:11.5px;line-height:1.7}
+.logs div{white-space:pre-wrap;word-break:break-all;padding:1px 4px;border-radius:4px;transition:background .12s}
+.logs div:hover{background:rgba(255,255,255,.03)}
+.log-time{color:var(--text-3);margin-right:6px}.log-info{color:var(--text-2)}.log-warn{color:var(--orange)}.log-err{color:var(--red)}
+/* ── 通用面板 ── */
+.panel{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:22px 24px;margin-bottom:14px;transition:border-color .2s var(--ease)}
+.panel:hover{border-color:var(--hairline-strong)}
+.panel h2{font-size:13px;font-weight:600;letter-spacing:.03em;margin-bottom:18px;color:var(--text);display:flex;align-items:center;gap:8px}
+.panel h2::before{content:"";width:3px;height:13px;border-radius:2px;background:var(--primary);display:inline-block}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.row label{font-size:13px;color:var(--text);display:flex;align-items:center;gap:7px;cursor:pointer}
+input[type=checkbox]{accent-color:var(--primary);width:15px;height:15px;cursor:pointer}
+input,select{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:0 14px;height:40px;color:var(--text);font-size:.938rem;outline:none;font-family:var(--font);transition:border-color .15s;color-scheme:dark}
+select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b93a7' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:14px;padding-right:36px}
+input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--focus)}
+textarea{background:var(--bg-2);border:1px solid var(--hairline);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;font-family:var(--font);transition:border-color .15s,box-shadow .15s;color-scheme:dark}
+input::placeholder,textarea::placeholder{color:var(--text-3)}
+input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--focus)}
+select{color-scheme:dark}
+textarea{resize:vertical}
+/* ── 按钮系统 ── */
+.btn{padding:10px 20px;border-radius:10px;font-size:.938rem;font-weight:500;cursor:pointer;border:none;font-family:var(--font);transition:all .15s var(--ease);background:var(--surface2);color:var(--text)}
+.btn:hover{background:var(--surface-3)}
+.btn:active{transform:scale(.98)}
+.btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.btn-primary{background:var(--brand);color:#fff}
+.btn-primary:hover{background:#5b21b6}
+.btn-green{background:rgba(34,197,94,.10);color:var(--green);border:none}
+.btn-green:hover{background:rgba(34,197,94,.18)}
+.btn-red{background:rgba(239,68,68,.10);color:var(--red);border:none}
+.btn-red:hover{background:rgba(239,68,68,.18)}
+.btn:disabled{opacity:.5;cursor:wait}
+select option{background:#16161d;color:#e6e6ea}
+select option:checked,select option:hover{background:var(--brand);color:#fff}
+.mono{font-family:var(--mono);font-size:12px;color:var(--muted);word-break:break-all}
+.hint{color:var(--muted);font-size:.85rem}
+.msg{color:var(--green);font-size:.85rem;min-height:1.2em;margin-top:8px}
+/* ── 指纹卡片 ── */
+.fp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:1100px){.fp-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.fp-grid{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:18px;transition:all .22s var(--ease);position:relative}
+.card:hover{border-color:rgba(139,92,246,.3);transform:translateY(-2px);box-shadow:var(--shadow-lift)}
+.card-status{position:absolute;top:14px;right:14px;font-size:10px;padding:3px 10px;border-radius:999px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+.card-status.off{background:rgba(255,255,255,.05);color:var(--text-3)}
+.card-status.on{background:rgba(52,209,124,.14);color:var(--green)}
+.card-status.bg{background:rgba(245,158,11,.16);color:var(--orange)}
+.card-header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.card-avatar{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.35rem;flex-shrink:0;background:var(--surface-3);border:1px solid var(--hairline)}
+.card-info{flex:1;min-width:0}.card-name{font-size:14px;font-weight:600;letter-spacing:-.2px}.card-id{font-size:11px;color:var(--text-3);font-family:var(--mono)}
+.card-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.tag{font-size:.8rem;padding:4px 10px;border-radius:6px;background:rgba(109,40,217,.1);color:var(--violet);font-weight:500}
+.tag.green{background:rgba(34,197,94,.1);color:var(--green)}.tag.gray{background:rgba(255,255,255,.04);color:var(--muted)}
+/* ── Gem 网格 ── */
+.gem-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.gem-card{background:var(--bg-2);border:1px solid var(--hairline);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:8px;transition:all .18s var(--ease);position:relative}
+.gem-card:hover{border-color:var(--hairline-strong)}
+.gem-card .n{flex:1;min-width:0;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gem-card .cur{font-size:10px;color:var(--green);font-weight:600;letter-spacing:.04em;white-space:nowrap}
+.gem-card .btn-sm{padding:4px 10px;font-size:11px}
+.gem-sec-h{font-size:12px;color:var(--text-3);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:8px}
+.gem-sec-h::after{content:"";flex:1;height:1px;background:var(--hairline)}
+.gem-scroll{flex:1;min-height:0;overflow-y:auto;padding-right:6px;margin-right:-6px}
+.gem-tag{position:absolute;top:-1px;left:10px;font-size:9px;padding:2px 7px;border-radius:999px;font-weight:600;letter-spacing:.04em;transform:translateY(-50%)}
+.gem-tag.pre{background:rgba(80,140,255,.16);color:#7aa8ff}
+.gem-tag.cus{background:rgba(109,40,217,.2);color:var(--violet)}
+.gem-card{padding-top:16px}
+.card-actions{display:flex;gap:6px;flex-wrap:wrap}
+.btn-sm{padding:8px 16px;border-radius:8px;font-size:.85rem;font-weight:500;border:none;cursor:pointer;font-family:var(--font);transition:all .15s var(--ease);background:rgba(255,255,255,.04);color:var(--muted)}
+.btn-sm:hover{color:var(--text);background:rgba(255,255,255,.08)}
+.btn-sm.dim{opacity:.7}
+.btn-sm.dim:hover{opacity:1;background:var(--surface-2)}
+.btn-sm.play{background:rgba(52,209,124,.10);color:var(--green);border-color:rgba(52,209,124,.28)}
+.btn-sm.play:hover{background:rgba(52,209,124,.18)}
+.btn-sm.stop{background:rgba(240,82,82,.10);color:var(--red);border-color:rgba(240,82,82,.30)}
+.btn-sm.stop:hover{background:rgba(240,82,82,.18)}
+.card.selectable{cursor:pointer;outline:1.5px dashed var(--hairline-strong);outline-offset:4px}
+.card.selectable:hover{outline-color:var(--primary)}
+.card.sel{outline:1.5px solid var(--primary);outline-offset:4px;box-shadow:0 0 0 4px var(--primary-soft),var(--shadow-lift)}
+/* 弹窗分区 / 头像气泡 */
+.msec{font-size:13px;font-weight:600;color:var(--violet);margin:20px 0 12px;padding-top:14px;border-top:1px solid var(--hairline)}
+.msec:first-child{margin-top:0;padding-top:0;border-top:none}
+.avatar-circle{width:72px;height:72px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:2.2rem}
+.emoji-pick{display:none;position:absolute;top:102px;left:0;z-index:20;background:var(--surface-2);border:1px solid var(--hairline-strong);border-radius:10px;padding:8px;width:216px;flex-wrap:wrap;gap:4px;box-shadow:var(--shadow-lift)}
+.emoji-pick.show{display:flex}
+.emoji-pick span{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.15rem;cursor:pointer;transition:background .12s}
+.emoji-pick span:hover{background:var(--surface-3)}
+.inline{display:flex;align-items:center;gap:8px;margin-bottom:10px}.inline label{margin-bottom:0;cursor:pointer}
+/* ── 弹窗 ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(4,5,8,.78);backdrop-filter:blur(8px);z-index:100;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex;animation:pageIn .22s var(--ease)}
+.modal{background:var(--surface);border:1px solid var(--hairline-strong);border-radius:16px;width:660px;max-height:86vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-lift)}
+.modal-head{display:flex;align-items:center;gap:10px;padding:17px 26px;border-bottom:1px solid var(--hairline);flex-shrink:0}
+.modal-head h2{font-size:15px;font-weight:600;letter-spacing:-.2px;margin:0}
+.modal-body{padding:20px 26px;overflow-y:auto;flex:1}
+.modal-foot{display:flex;gap:10px;justify-content:flex-end;padding:14px 26px;border-top:1px solid var(--hairline);flex-shrink:0}
+.modal label{display:block;font-size:.875rem;color:var(--muted);margin:14px 0 6px}
+.modal .row{display:flex;gap:14px}.modal .row>*{flex:1}
+.modal .row label{margin-top:14px}
+.modal input:not([type=checkbox]),.modal select,.modal textarea{width:100%;margin-bottom:6px;padding:10px 14px;border-radius:10px;font-size:.938rem}
+.modal textarea{height:auto;min-height:60px;resize:vertical}
+.modal h3{font-size:1rem;font-weight:600;color:var(--violet);margin:20px 0 10px;padding-top:12px;border-top:1px solid var(--border)}
+.modal h3:first-child{margin-top:0;padding-top:0;border-top:none}
+#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--primary);color:#fff;padding:10px 24px;border-radius:10px;font-size:13px;display:none;z-index:200;box-shadow:var(--shadow-lift);opacity:0;transition:all .3s var(--ease)}
+#toast.show{display:block;opacity:1;transform:translateX(-50%) translateY(0)}
+/* ── iOS 胶囊开关 ── */
+.switch{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.switch .sl{position:absolute;inset:0;background:#363943;border-radius:24px;transition:background .25s var(--ease);cursor:pointer}
+.switch .sl::before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#c8ccd4;border-radius:50%;transition:transform .25s var(--ease),background .25s}
+.switch input:checked+.sl{background:var(--primary)}
+.switch input:checked+.sl::before{transform:translateX(20px);background:#fff}
+/* ── 功能卡 ── */
+.fun-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.fun-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg-2);border:1px solid var(--hairline);border-radius:10px;padding:12px 14px;min-height:60px}
+.fun-row .lab{font-size:13px;font-weight:600;white-space:nowrap}
+.fun-row .sub{font-size:11px;color:var(--text-3);margin-top:3px;white-space:nowrap}
+/* ── 账号子卡(积分/Cookie) ── */
+.acc-list{display:flex;flex-direction:column;gap:10.75px;margin-bottom:14px}
+.acc-row{display:flex;align-items:center;gap:12px;background:var(--bg-2);border:1px solid var(--hairline);border-radius:10px;padding:11px 14px;min-height:56px;cursor:pointer;transition:all .15s var(--ease)}
+.acc-row:hover{border-color:var(--hairline-strong)}
+.acc-row.sel{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+.acc-row .av{width:34px;height:34px;border-radius:9px;background:var(--surface-3);border:1px solid var(--hairline);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.acc-row .info{flex:1;min-width:0}
+.acc-row .nm{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acc-row .id{font-size:10px;color:var(--text-3);font-family:var(--mono)}
+.acc-row .mid{flex:1 1 auto;min-width:72px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-variant-numeric:tabular-nums}
+.acc-row .mid-line{display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;line-height:1}
+.acc-row .right-col{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.acc-row .bal{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.acc-row .bal.green{color:var(--green)}.acc-row .bal.red{color:var(--red)}.acc-row .bal.gray{color:var(--text-3)}
+.acc-row .mini-btn{font-size:9px;padding:2px 8px;border-radius:999px;border:1px solid var(--hairline-strong);background:transparent;color:var(--text-3);cursor:pointer}
+.acc-row .mini-btn:hover{border-color:var(--primary);color:var(--primary)}
+.acc-row .mini-btn.warn{border-color:var(--red);color:var(--red)}
+/* 异常告警横幅 */
+.alert-banner{background:rgba(240,82,82,.12);border:1px solid rgba(240,82,82,.4);color:var(--red);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:.9rem;max-height:150px;overflow-y:auto}
+.alert-banner .ab-head{display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:6px}
+.alert-banner .ab-dot{width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 6px var(--red)}
+.alert-banner .ab-close{margin-left:auto;font-size:11px;color:var(--text-3);cursor:pointer;padding:2px 8px;border:1px solid var(--hairline);border-radius:6px}
+.alert-banner .ab-item{font-size:.82rem;color:var(--text-1);padding:3px 0;border-bottom:1px dashed var(--hairline);line-height:1.5}
+.alert-banner .ab-item:last-child{border-bottom:none}
+.alert-banner .ab-meta{color:var(--text-3);font-size:.72rem}
+.acc-row .cook{font-size:10px;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.acc-row .cook.ok{background:rgba(52,209,124,.12);color:var(--green)}
+.acc-row .cook.no{background:rgba(240,82,82,.12);color:var(--red)}
+.acc-row .cook.idle{background:rgba(255,255,255,.05);color:var(--text-3)}
+/* ── 账号卡片标题栏 + 页码分页 ── */
+.acc-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.acc-head h2{margin:0;flex-shrink:0}
+.acc-pages{display:flex;gap:3px;background:var(--bg-2);border:1px solid var(--hairline);border-radius:8px;padding:3px;flex-shrink:0}
+.acc-page{border:none;background:transparent;color:var(--text-3);min-width:26px;height:24px;border-radius:6px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;transition:all .18s var(--ease);line-height:1}
+.acc-page:hover{color:var(--text);background:rgba(255,255,255,.06)}
+.acc-page.on{background:var(--primary);color:#fff}
+@keyframes accIn{from{opacity:.3;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.acc-list.anim{animation:accIn .24s var(--ease)}
+/* ── 两列布局 ── */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.two-col{grid-template-columns:1fr}}
+.two-col.col{display:flex;flex-direction:column;gap:14px}
+.two-col.col .panel{margin-bottom:0}
+.two-col.col .chat{height:auto}
+#p-prompt.active{display:flex;flex-direction:column;height:100%}
+#p-prompt .two-col.col{flex:1;padding-bottom:17px;min-height:0}
+#p-prompt .two-col.col .panel[style*="flex:1"]{flex:1}
+#p-prompt .two-col.col .panel{overflow:hidden}
+/* ── 代理配置网格 ── */
+.proxy-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:1000px){.proxy-grid{grid-template-columns:repeat(2,1fr)}}
+.pcell label{font-size:11px;color:var(--text-3);display:block;margin-bottom:6px;letter-spacing:.03em}
+.pcell input,.pcell select{width:100%}
+.pbtn{align-self:end;height:40px;width:100%}
+/* ── 快速测试(聊天) ── */
+.chat{display:flex;flex-direction:column;height:340px;background:var(--bg);border:1px solid var(--hairline);border-radius:10px;overflow:hidden}
+.chat-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.chat-body::-webkit-scrollbar{width:8px}
+.bubble{max-width:82%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.bubble.user{align-self:flex-end;background:var(--primary);color:#fff;border-bottom-right-radius:4px}
+.bubble.ai{align-self:flex-start;background:var(--surface-2);border:1px solid var(--hairline);color:var(--text);border-bottom-left-radius:4px}
+.chat-input{display:flex;gap:8px;padding:12px;border-top:1px solid var(--hairline)}
+.chat-input .chat-model{min-width:150px}
+/* 深色输入框强化(防白底) */
+input,select,textarea{color-scheme:dark;background-color:var(--bg-2)!important;color:var(--text)!important}
+/* 紧凑布局:窗口 ≤1300px(如 1280×1080)收紧卡片高度/间距,字体保持可读(放末尾确保覆盖) */
+@media (max-width:1300px){
+  .om-shell{padding:10px 18px 0}
+  .om-scroll{padding:4px 12px 14px}
+  .top{gap:12px;margin-bottom:12px;padding-bottom:12px}
+  .kpi{min-height:88px;padding:12px 14px}
+  .kpi.lg{min-height:119px;padding:14px 16px}
+  .kpi.lg .k{margin-bottom:8px}
+  .kpi.lg .s{margin-top:8px}
+  .kpi.lg .v{font-size:25px}
+  .kpi .v{font-size:24px}
+  .logs{height:200px}
+  .panel{padding:13px 15px;margin-bottom:8px}
+  .logpanel{padding:12px}
+  .acc-row{min-height:36px;padding:6px 11px}
+  .acc-list{gap:6px}
+  .fun-row{padding:7px 11px;min-height:42px}
+  .fp-grid{gap:8px}
+  .two-col{gap:10px}
+  .card{padding:12px}
+  .card-header,.card-meta{margin-bottom:6px}
+}
+/* 状态看板:日志区弹性填满剩余高度,减小底部余量(与设置页协调);仅 active 显示 */
+#p-dash.active{display:flex;flex-direction:column;min-height:100%}
+#p-dash .logpanel{flex:1;display:flex;flex-direction:column;min-height:0}
+#p-dash .logs{flex:1;height:auto}
+</style></head>
+<body>
+<div class="om-shell">
+  <div class="top">
+    <div class="logo">G</div>
+    <h1>Gemini-API <span style="font-size:.72rem;color:var(--muted);font-weight:500;margin-left:6px;letter-spacing:.03em">V1.2</span></h1>
+    <span class="head-state" id="headState"><span class="dot" id="headDot" style="background:var(--text-3)"></span><span id="headStateText">检测中…</span></span>
+    <div class="nav">
+      <button class="pill on" data-p="dash" onclick="switchPage('dash')">状态看板</button>
+      <button class="pill" data-p="settings" onclick="switchPage('settings')">功能设置</button>
+      <button class="pill" data-p="prompt" onclick="switchPage('prompt')">系统提示词</button>
+      <button class="pill" data-p="fp" onclick="switchPage('fp')">账号管理</button>
+    </div>
+  </div>
+  <div class="om-scroll">
+
+    <!-- ═══════════ 看板 ═══════════ -->
+    <div class="page active" id="p-dash">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+        <button class="btn" style="padding:4px 12px;font-size:.78rem" onclick="openAlertModal()">⚙ 告警推送设置</button>
+      </div>
+      <div id="alertBanner" class="alert-banner" style="display:none"></div>
+      <div class="dash-r r3" id="row1"></div>
+      <div class="dash-r r4" id="row2"></div>
+      <div class="dash-r r4" id="row3"></div>
+      <div class="dash-r r2" id="row5"></div>
+      <div class="logpanel">
+        <div class="logtabs">
+          <button class="pill on" id="lt-bridge" onclick="switchLog('bridge')">桥日志</button>
+          <button class="pill" id="lt-server" onclick="switchLog('server')">服务端日志</button>
+        </div>
+        <div class="logs" id="logs"></div>
+      </div>
+    </div>
+
+    <!-- ═══════════ 设置 ═══════════ -->
+    <div class="page" id="p-settings">
+      <div class="two-col" style="margin-bottom:14px">
+        <div class="panel" style="margin-bottom:0">
+          <h2>功能</h2>
+          <div class="fun-grid">
+            <div class="fun-row"><div><div class="lab">思考模式</div><div class="sub">推理过程</div></div><label class="switch"><input type="checkbox" id="swThinking"><span class="sl"></span></label></div>
+            <div class="fun-row"><div><div class="lab">并行工具调用</div><div class="sub">多工具同时执行</div></div><label class="switch"><input type="checkbox" id="swParallel"><span class="sl"></span></label></div>
+            <div class="fun-row"><div><div class="lab">自动删除对话</div><div class="sub">用完即清理历史</div></div><label class="switch"><input type="checkbox" id="swAutoDelete"><span class="sl"></span></label></div>
+            <div class="fun-row"><div><div class="lab">临时对话</div><div class="sub">不保留会话</div></div><label class="switch"><input type="checkbox" id="swTemporary"><span class="sl"></span></label></div>
+            <div class="fun-row"><div><div class="lab">自动切换 Cookie</div><div class="sub">额度用尽自动切账号</div></div><label class="switch"><input type="checkbox" id="swAutoSwitch"><span class="sl"></span></label></div>
+            <div class="fun-row"><div><div class="lab">Cookie 保活</div><div class="sub">触发令牌旋转</div></div><button class="btn btn-green" onclick="action('keepalive', this)" style="padding:7px 16px;white-space:nowrap">保活</button></div>
+          </div>
+        </div>
+        <div class="panel" style="margin-bottom:0">
+          <h2>出口代理配置</h2>
+          <div class="proxy-grid">
+            <div class="pcell"><label>启用</label><label class="switch" style="margin-top:8px"><input type="checkbox" id="proxyEnabled"><span class="sl"></span></label></div>
+            <div class="pcell"><label>代理类型</label><select id="proxyScheme"><option>socks5h</option><option>socks5</option><option>http</option></select></div>
+            <div class="pcell"><label>主机 IP</label><input id="proxyHost" placeholder="如 185.186.63.143"></div>
+            <div class="pcell"><label>端口</label><input id="proxyPort" placeholder="如 12324"></div>
+            <div class="pcell"><label>用户名</label><input id="proxyUser" placeholder="代理用户名"></div>
+            <div class="pcell"><label>密码</label><input id="proxyPass" type="password" placeholder="代理密码"></div>
+            <button class="btn btn-primary pbtn" onclick="saveProxy(this)">保存并同步</button>
+            <button class="btn pbtn" onclick="testProxy(this)">连通性检测</button>
+          </div>
+          <div class="msg" id="proxyMsg"></div>
+        </div>
+      </div>
+
+      <div class="two-col" style="margin-bottom:14px">
+        <div class="panel" style="margin-bottom:0">
+          <div class="acc-head"><h2>积分余额</h2><div class="acc-pages" id="balPages"></div></div>
+          <div class="acc-list" id="balanceList"><span class="hint">加载中…</span></div>
+          <div class="row" style="margin-bottom:0"><button class="btn" onclick="refreshBalance(this)">刷新余额</button><span class="hint" id="balRefreshHint"></span></div>
+        </div>
+        <div class="panel" style="margin-bottom:0">
+          <div class="acc-head"><h2>Cookie 列表</h2><div class="acc-pages" id="cookPages"></div></div>
+          <div class="acc-list" id="cookieList"><span class="hint">加载中…</span></div>
+          <div class="row" style="margin-bottom:0"><button class="btn btn-primary" onclick="switchSelectedCookie(this)">切换 Cookie</button><span class="hint">选中一个 Cookie 后点击切换</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══════════ 系统提示词(Gems 管理 + 快速测试)═══ -->
+    <div class="page" id="p-prompt">
+      <div class="two-col col">
+        <div class="panel" style="margin-bottom:0;flex:2;display:flex;flex-direction:column;min-height:0">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+            <h2 style="margin-bottom:0;flex:1">Gemini Gems 管理</h2>
+            <button class="btn" onclick="loadGems()">刷新</button>
+          </div>
+          <button class="btn btn-primary" onclick="openGemModal()" style="align-self:flex-start">＋ 创建新 Gem</button>
+          <input id="gemSearch" placeholder="搜索 Gem(名称/描述/ID)…" style="width:100%;margin:12px 0 4px">
+          <div class="gem-scroll">
+            <div class="gem-sec-h">预置 GEM</div>
+            <div class="gem-grid" id="gemPre"><span class="hint">加载中…</span></div>
+            <div class="gem-sec-h">自建 GEM</div>
+            <div class="gem-grid" id="gemCus"><span class="hint">加载中…</span></div>
+          </div>
+        </div>
+        <div class="panel" style="margin-bottom:0;flex:1;display:flex;flex-direction:column;min-height:0">
+          <h2>快速测试</h2>
+          <div class="chat" style="flex:1;min-height:0">
+            <div class="chat-body" id="chatBody"><div class="bubble ai">你好!我是 Gemini,有什么可以帮你的?</div></div>
+            <div class="chat-input">
+              <select class="chat-model" id="chatModel"><option value="gemini-flash">gemini-flash</option><option value="gemini-pro">gemini-pro</option><option value="gemini-flash-lite">gemini-flash-lite</option></select>
+              <input id="chatPrompt" placeholder="输入消息…" style="flex:1">
+              <button class="btn btn-primary" onclick="sendChat(this)">发送</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ 指纹浏览器管理 ═══════════ -->
+    <div class="page" id="p-fp">
+      <div class="row" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="openCreateModal()">＋ 添加账号</button>
+        <button class="btn" onclick="cookieRobot()">Cookie 机器人</button>
+        <button class="btn" onclick="fpSelectMode()">选择(批量管理)</button>
+        <span class="hint" id="fpStats" style="margin-left:auto"></span>
+      </div>
+      <div class="row" id="selectBar" style="display:none;background:var(--surface);border:1px solid var(--hairline);border-radius:10px;padding:8px 12px">
+        <button class="btn btn-green" onclick="fpBatch('open')">批量打开</button>
+        <button class="btn btn-red" onclick="fpBatch('close')">批量关闭</button>
+        <button class="btn btn-red" onclick="fpBatch('delete')">批量删除</button>
+        <button class="btn" onclick="fpSelectMode()">取消选择</button>
+      </div>
+      <div class="fp-grid" id="fpCards"></div>
+      <div class="hint" id="fpEmpty" style="text-align:center;padding:48px 0">暂无窗口,点击「新建窗口」创建第一个指纹浏览器</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 新建/编辑弹窗 -->
+<div class="modal-overlay" id="fpModal">
+  <div class="modal">
+    <div class="modal-head"><h2 id="fpModalTitle">添加账号</h2><button class="btn" style="margin-left:auto;padding:4px 10px" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <h3 class="msec">基础</h3>
+      <div style="display:flex;gap:16px;align-items:center;margin-bottom:6px">
+        <div style="flex-shrink:0;text-align:center;position:relative">
+          <div id="avatarDisplay" class="avatar-circle" onclick="toggleEmojiPick()" style="cursor:pointer"></div>
+          <button class="btn" onclick="toggleEmojiPick()" style="margin-top:8px;padding:5px 12px;font-size:12px">选择头像</button>
+          <div id="emojiPick" class="emoji-pick"></div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <label>名称</label><input id="fName" placeholder="例如: 账号 1">
+          <label>备注</label><input id="fNote" placeholder="备注(可选)">
+        </div>
+      </div>
+      <h3 class="msec">指纹 <button class="btn" onclick="randomizeFp(this)" style="float:right;padding:5px 12px;font-size:12px">一键随机</button></h3>
+      <label>内核版本 <span style="color:var(--text-3);font-size:11px">(决定 UA 中的 Chrome 版本号)</span></label>
+      <div style="display:flex;gap:8px;align-items:center"><select id="fKernel" style="flex:1"><option value="">系统默认</option></select><button class="btn" onclick="downloadKernel(this)" style="white-space:nowrap;height:40px">下载</button></div>
+      <div class="row"><div style="flex:1"><label>OS</label><select id="fOsFam" onchange="onOsChange()"><option value="windows">Windows</option><option value="macos">macOS</option><option value="linux">Linux</option></select></div><div id="fOsVerRow" style="flex:1"><label>版本</label><select id="fOsVer"><option value="win10">Win10</option><option value="win11">Win11</option></select></div></div>
+      <label>UA</label><textarea id="fUa" rows="2" placeholder="点击右上角「一键随机」生成真实 UA,或手动填写"></textarea>
+      <div class="row"><div style="flex:1"><label>WebGL 厂商</label><input id="fWebglV" placeholder="留空自动派生"></div><div style="flex:1"><label>WebGL 渲染</label><input id="fWebglR" placeholder="留空自动派生"></div></div>
+      <div class="row"><div style="flex:1"><label>CPU 核心</label><select id="fCpu"><option>4</option><option>8</option><option>12</option><option>16</option><option>20</option><option>24</option></select></div><div style="flex:1"><label>内存 GB</label><select id="fMem"><option>4</option><option>8</option><option>16</option><option>32</option></select></div></div>
+      <h3 class="msec">高级</h3>
+      <div class="row"><div style="flex:1"><label>WebRTC</label><select id="fWebrtc"><option value="private">隐私(默认)</option><option value="replace">替换</option><option value="allow">允许</option><option value="disabled">禁止</option></select></div><div style="flex:1"><label>地理位置</label><select id="fGeoMode"><option value="ask">询问</option><option value="allow">允许</option><option value="deny">禁止</option></select></div></div>
+      <div class="inline"><input type="checkbox" id="fGeoIp" checked><label>基于IP</label></div>
+      <div class="inline"><input type="checkbox" id="fLangFollow" checked><label>语言跟随IP</label></div>
+      <label>启动 URLs</label><textarea id="fUrls" rows="2"></textarea>
+      <div class="inline"><input type="checkbox" id="fHwAccel" checked><label>硬件加速</label></div>
+      <div class="inline"><input type="checkbox" id="fIgnoreHttps"><label>忽略 HTTPS 证书错误</label></div>
+      <h3 class="msec">出口代理(仅本窗口)</h3>
+      <div class="row"><div style="flex:1"><label>模式</label><select id="fProxyMode"><option value="direct">直连</option><option value="socks5h">socks5</option><option value="http">http</option><option value="system">跟随系统</option></select></div><div style="flex:1"><label>主机 IP</label><input id="fProxyHost" placeholder="如 185.186.63.143"></div><div style="flex:1"><label>端口</label><input id="fProxyPort" placeholder="如 12324"></div></div>
+      <div class="row"><div style="flex:1"><label>用户名(可留空)</label><input id="fProxyUser" autocomplete="new-password"></div><div style="flex:1"><label>密码(可留空)</label><input id="fProxyPass" type="password" autocomplete="new-password"></div></div>
+      <div class="row" style="align-items:center;margin-top:6px"><button class="btn btn-sm" onclick="testProxyFromModal(this)">测试代理连通性</button><span id="fProxyTestOut" class="hint" style="flex:1"></span></div>
+      <div class="hint" style="margin-top:6px">留空或选「直连」= 该窗口用系统默认出口;设置后仅本窗口(及其 Gemini 账号)走此代理,不影响其他窗口。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveProfile(this)">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cookie 管理弹窗 -->
+<div class="modal-overlay" id="ckModal">
+  <div class="modal">
+    <div class="modal-head"><h2 id="ckTitle">Cookie 管理</h2><button class="btn" style="margin-left:auto;padding:4px 10px" onclick="closeCkModal()">✕</button></div>
+    <div class="modal-body"><div id="ckBody" style="font-size:13px"></div></div>
+    <div class="modal-foot"><button class="btn" onclick="closeCkModal()">关闭</button></div>
+  </div>
+</div>
+
+<!-- 创建 Gem 弹窗 -->
+<div class="modal-overlay" id="gemModal">
+  <div class="modal">
+    <div class="modal-head"><h2>创建新 Gem</h2><button class="btn" style="margin-left:auto;padding:4px 10px" onclick="closeGemModal()">✕</button></div>
+    <div class="modal-body">
+      <label>名称 <span style="color:var(--red)">*</span></label><input id="nGemName" placeholder="例如: Python 导师" style="width:100%">
+      <label>描述(可选)</label><input id="nGemDesc" placeholder="一句话描述这个 Gem 的用途" style="width:100%">
+      <label>System Prompt <span style="color:var(--red)">*</span></label><textarea id="nGemPrompt" style="min-height:96px" placeholder="你是一个专业的 Python 编程导师…"></textarea>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeGemModal()">取消</button>
+      <button class="btn btn-primary" onclick="createGem(this)">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cookie 机器人弹窗(参考 OpenMedia:批量预热网址,为勾选窗口产生真实 Cookie 与访问历史) -->
+<div class="modal-overlay" id="robotModal">
+  <div class="modal" style="width:560px">
+    <div class="modal-head"><h2>Cookie 机器人</h2><button class="btn" style="margin-left:auto;padding:4px 10px" onclick="closeRobotModal()">✕</button></div>
+    <div class="modal-body">
+      <div style="font-size:.85rem;color:var(--text-3);margin-bottom:12px;line-height:1.6">针对刚新建的窗口，部分网站打开后可能被认为可疑，需要一定的访问记录。机器人会自动浏览你指定的网址，为勾选窗口产生真实 Cookie 与访问历史。窗口运行中会跳过（请先关闭）；已关闭的窗口临时后台启动预热，跑完自动关闭。</div>
+      <label style="display:block;font-size:.85rem;color:var(--muted);margin:10px 0 6px">选择窗口（可多选）</label>
+      <div id="robotPidList" style="max-height:180px;overflow-y:auto;border:1px solid var(--hairline);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px"><span class="hint">加载中…</span></div>
+      <label style="display:block;font-size:.85rem;color:var(--muted);margin:12px 0 6px">预热网址（每行一个）</label>
+      <textarea id="robotUrls" rows="5" placeholder="https://www.baidu.com&#10;https://www.bilibili.com" style="width:100%"></textarea>
+      <label style="display:block;font-size:.85rem;color:var(--muted);margin:12px 0 6px">每站停留（秒,1-60）</label>
+      <input id="robotDwell" type="number" value="4" min="1" max="60" style="width:120px">
+      <div id="robotProgress" style="margin-top:12px;font-size:.85rem;color:var(--muted);line-height:1.7"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeRobotModal()">取消</button>
+      <button class="btn btn-primary" id="robotRunBtn" onclick="runRobot()">开始预热</button>
+    </div>
+  </div>
+</div>
+
+<!-- 通用确认弹窗 -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="width:420px">
+    <div class="modal-head"><h2 id="cfTitle">确认</h2><button class="btn" style="margin-left:auto;padding:4px 10px" onclick="closeConfirm()">✕</button></div>
+    <div class="modal-body" id="cfMsg" style="font-size:.9rem;line-height:1.6"></div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeConfirm()">取消</button>
+      <button class="btn btn-red" onclick="cfOk()">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 外部告警推送配置弹窗(方向一: Webhook/Bark/Server酱/Telegram) -->
+<div class="modal-overlay" id="alertConfigModal">
+  <div class="modal" style="width:560px">
+    <div class="modal-head"><h2>外部告警推送设置</h2><button class="btn" style="margin-left:auto;padding:4px 10px" onclick="closeAlertModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="inline" style="margin-bottom:10px"><input type="checkbox" id="alEnabled"><label for="alEnabled">启用外部告警推送</label></div>
+      <div class="row">
+        <div style="flex:1"><label>推送通道</label>
+          <select id="alChannel" onchange="onAlertChannelChange()">
+            <option value="webhook">通用 Webhook(飞书/钉钉/企微/自建)</option>
+            <option value="bark">Bark(iOS 推送)</option>
+            <option value="serverchan">Server酱(微信推送)</option>
+            <option value="telegram">Telegram Bot</option>
+          </select>
+        </div>
+        <div style="flex:1"><label>触发级别</label>
+          <select id="alMinLevel">
+            <option value="WARNING">WARNING 及以上(推荐)</option>
+            <option value="ERROR">仅 ERROR(严重故障)</option>
+            <option value="INFO">全部(含信息提示)</option>
+          </select>
+        </div>
+      </div>
+      <div id="secWebhook">
+        <label>Webhook URL</label><input id="alWebhookUrl" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/... 或自建接收端">
+        <label>自定义 Headers(可选,每行一条 Key: Value)</label><textarea id="alWebhookHeaders" rows="2" placeholder="Authorization: Bearer xxx"></textarea>
+      </div>
+      <div id="secBark" style="display:none">
+        <label>Bark Device Key</label><input id="alBarkKey" placeholder="Bark App 显示的推送 Key">
+        <label>Bark 服务器(自建可改)</label><input id="alBarkServer" value="https://api.day.app">
+      </div>
+      <div id="secServerchan" style="display:none">
+        <label>Server酱 SendKey</label><input id="alServerchanKey" placeholder="SCTxxxxxxxxxxxx( sct.ftqq.com 获取)">
+      </div>
+      <div id="secTelegram" style="display:none">
+        <label>Bot Token</label><input id="alTgToken" placeholder="123456:ABC-DEF...(@BotFather 创建)">
+        <label>Chat ID</label><input id="alTgChatId" placeholder="个人 ID 或群组 ID">
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div style="flex:1"><label>同类告警防抖冷却(秒)</label><input id="alCooldown" type="number" value="300" min="0"></div>
+      </div>
+      <div class="hint" style="margin-top:8px;line-height:1.6">熔断打开、代理判死、凭据自愈失败、配额不足等事件将按「触发级别」推送到所选通道;同类告警在冷却窗口内只推一次,防轰炸。</div>
+      <div class="row" style="align-items:center;margin-top:10px">
+        <button class="btn" onclick="testAlertFromModal(this)">发送测试消息</button>
+        <span id="alTestOut" style="font-size:.8rem;flex:1"></span>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeAlertModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveAlertConfigFromModal(this)">保存配置</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+const $ = id => document.getElementById(id);
+let DASH = null, FP_ACCOUNTS = [], fpSel = new Set(), fpSelecting = false, curEditPid = null, logMode = 'bridge', lastLogCount = 0;
+
+function toast(t){ const e=$('toast'); e.textContent=t; e.classList.add('show'); setTimeout(()=>e.classList.remove('show'),2400); }
+function switchPage(p){ document.querySelectorAll('.nav .pill').forEach(x=>x.classList.toggle('on', x.dataset.p===p)); document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active', x.id==='p-'+p)); if(p==='fp') loadFp(); if(p==='settings') loadSettings(); if(p==='prompt') loadGems(); if(p==='dash') refreshDash(); setTimeout(fitPage, 350); }
+// 紧凑自适应:不用 transform 缩放字体(可读性差),改靠 CSS 布局收紧;内容超高时正常滚动
+function fitPage(){
+  const sc=document.querySelector('.om-scroll'); const page=document.querySelector('.page.active');
+  if(!sc||!page) return;
+  sc.style.overflowY='auto';  // 允许滚动(内容超高时)
+}
+window.addEventListener('resize', fitPage);
+setTimeout(fitPage, 700);
+
+// ─────────── 看板 ───────────
+let apiKeyVisible = false;
+function fmt(n){ return n>=1e6?(n/1e6).toFixed(1)+'M':(n>=1e3?(n/1e3).toFixed(1)+'k':n); }
+function kpi(k,v,cls,sub,lg){ return '<div class="kpi'+(lg?' lg':'')+'"><div class="k">'+k+'</div><div class="v '+cls+'">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>'; }
+function renderKpis(){
+  const b=DASH.bridge||{}, s=DASH.server||{}, a=DASH.accounts||{};
+  // 行1 三张大卡
+  const connOk=!!b.server_ready;  // 服务端就绪(有 cookie 推送)才算已连接,否则连接中
+  const proxyOk=(b.client_mode==='proxy');
+  const hasProxy=!!b.proxy_parsed;
+  const proxyDisp = b.client_mode==='direct'?'直连降级':(hasProxy?'已启用':'-');
+  $('row1').innerHTML =
+    kpi('服务状态', s.running?'运行中':'离线', s.running?'green':'red', s.running?('运行 '+s.uptime):'', true)+
+    kpi('服务核心连接', connOk?'已连接':'连接中', connOk?'green':'orange', '连接时长 '+(DASH.server_duration||'-'), true)+
+    kpi('代理出口', proxyDisp, proxyOk?'green':(b.client_mode==='direct'?'red':''), hasProxy?(b.proxy_parsed.host+':'+b.proxy_parsed.port+' (服务端+浏览器窗口)'):'未启用', true);
+  // 行2 四卡
+  $('row2').innerHTML =
+    kpi('请求统计', s.total_requests??0)+
+    kpi('平均响应', s.avg_response_time!=null?(s.avg_response_time+'ms'):'-')+
+    kpi('错误率', s.error_rate!=null?(s.error_rate+'%'):'-', (s.error_rate||0)>5?'red':'')+
+    kpi('最近保活', b.keepalive_time||'-');
+  // 行3 四卡
+  $('row3').innerHTML =
+    kpi('账号数量', a.total+' / 27', 'violet', a.total?'已建 '+a.total+' 个窗口':'')+
+    kpi('登录状态', a.logged+' / 27', a.logged>0?'green':'', a.logged+' 个已登录')+
+    kpi('Cookie 存活', a.alive+' / 27', a.alive>0?'green':'', a.alive+' 个活性正常')+
+    kpi('Cookie 推送', b.push_time||'-');
+  // 行5 两张大卡:API 接入 + Token 用量
+  const key=(b.api_key||'-');
+  const keyShow = apiKeyVisible?key:(key.length>8?key.slice(0,6)+'…'+key.slice(-4):key);
+  const keyBtn = apiKeyVisible?'隐藏':'显示';
+  $('row5').innerHTML =
+    '<div class="kpi lg api-card"><div class="k">API 接入</div><div class="api-rows">'+
+    '<div class="ap-row"><span class="ap-lab">Base URL</span><span class="ap-val" id="apiBase">'+(b.base_url||'-')+'</span><button class="icon-btn" onclick="copyText(\'apiBase\')">复制</button></div>'+
+    '<div class="ap-row"><span class="ap-lab">API Key</span><span class="ap-val" id="apiKey">'+keyShow+'</span><button class="icon-btn" onclick="toggleApiKey()">'+keyBtn+'</button><button class="icon-btn" onclick="copyApiKey()">复制</button></div>'+
+    '<div class="ap-row"><span class="ap-lab">接入方式</span><span class="ap-val">OpenAI 兼容 · /v1/chat/completions · Bearer</span></div>'+
+    '<div class="ap-row"><span class="ap-lab">模型列表</span><div class="ap-models"><span class="tag gray">gemini-pro</span><span class="tag gray">gemini-flash</span><span class="tag gray">gemini-flash-lite</span></div></div>'+
+    '</div></div>'+
+    '<div class="kpi lg token-card"><div class="k">Token 用量(累计)</div><div class="token-grid" id="tokenGrid"></div></div>';
+  renderTokens();
+  const ok=s.running, dot=$('headDot'); dot.style.background=ok?'var(--green)':'var(--red)'; $('headStateText').textContent=ok?'运行中':'离线';
+}
+function renderTokens(){
+  const tu=(DASH.server&&DASH.server.token_usage)||{};
+  const p=tu.prompt||0, c=tu.completion||0, t=tu.total||0;
+  let since='';
+  if(tu.since){ const d=new Date(tu.since*1000); since=' · 自 '+d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})+' 累计'; }
+  $('tokenGrid').innerHTML='<div class="token-cell"><div class="t-k">上行 Token</div><div class="t-v green">'+fmt(p)+'</div></div><div class="token-cell"><div class="t-k">下行 Token</div><div class="t-v violet">'+fmt(c)+'</div></div><div class="token-cell"><div class="t-k">总量</div><div class="t-v">'+fmt(t)+'</div></div>'
+    +(since?'<div style="font-size:11px;color:var(--text-3);margin-top:6px">口径 chars/4'+since+',重启不清零</div>':'');
+}
+function toggleApiKey(){ apiKeyVisible=!apiKeyVisible; renderKpis(); }
+function copyApiKey(){ const k=(DASH.bridge&&DASH.bridge.api_key)||''; if(navigator.clipboard){ navigator.clipboard.writeText(k).then(()=>toast('已复制完整 API Key')); } }
+function copyText(id){ const v=document.getElementById(id).textContent; if(navigator.clipboard){ navigator.clipboard.writeText(v).then(()=>toast('已复制')); } }
+function refreshLogsManual(btn){ btn.disabled=true; refreshDash(); setTimeout(()=>btn.disabled=false,800); }
+async function refreshDash(){
+  try{ const r=await fetch('/api/dashboard'); DASH=await r.json(); renderKpis(); renderLogs(); }catch(e){}
+  renderAlerts();
+}
+// ── 异常告警: 轮询 /api/alerts,未读则显示红点横幅 ──
+let _lastAlertSig='';
+async function renderAlerts(){
+  try{
+    const r=await fetch('/api/alerts'); const j=await r.json();
+    const alerts=j.alerts||[]; const unseen=!!j.unseen;
+    const el=$('alertBanner'); if(!el) return;
+    if(!alerts.length){ el.style.display='none'; return; }
+    const sig=alerts.length+':'+String(unseen);
+    el.style.display='block';
+    const st=j.stats||{}; const stats=(st.today!=null)?(' · 今日 '+st.today+(st.errors?(' / 错误 '+st.errors):'')):'';
+    el.innerHTML='<div class="ab-head"><span class="ab-dot"></span><span>'+(unseen?'⚠ ':'')+'异常告警 ('+alerts.length+stats+')</span>'
+      +'<span style="margin-left:auto;display:flex;gap:8px;align-items:center">'
+      +'<span class="ab-close" onclick="openAlertModal()" style="color:var(--text-2)">⚙ 推送设置</span>'
+      +'<span class="ab-close" onclick="markAlertsSeen()">标记已读</span></span></div>'
+      +alerts.slice().reverse().map(a=>{
+        const d=new Date(a.t*1000).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+        return '<div class="ab-item"><span style="color:'+(a.level==='ERROR'?'var(--red)':'#e6a23c')+'">['+a.level+']</span> '+a.msg+' <span class="ab-meta">· '+d+'</span></div>';
+      }).join('');
+    // 打开即标记已读(有未读才标,避免刚弹就消失)
+    if(unseen && sig!==_lastAlertSig){ _lastAlertSig=sig; }
+  }catch(e){}
+}
+async function markAlertsSeen(){
+  try{ await fetch('/api/alerts/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); renderAlerts(); }catch(e){}
+}
+// ── 外部告警推送配置(方向一) ──
+function onAlertChannelChange(){
+  const ch=$('alChannel').value;
+  $('secWebhook').style.display = ch==='webhook'?'block':'none';
+  $('secBark').style.display = ch==='bark'?'block':'none';
+  $('secServerchan').style.display = ch==='serverchan'?'block':'none';
+  $('secTelegram').style.display = ch==='telegram'?'block':'none';
+}
+function _alertModalPayload(){
+  return {
+    enabled: $('alEnabled').checked,
+    channel: $('alChannel').value,
+    min_level: $('alMinLevel').value,
+    webhook_url: $('alWebhookUrl').value.trim(),
+    webhook_headers: $('alWebhookHeaders').value.trim(),
+    bark_key: $('alBarkKey').value.trim(),
+    bark_server: $('alBarkServer').value.trim()||'https://api.day.app',
+    serverchan_key: $('alServerchanKey').value.trim(),
+    telegram_token: $('alTgToken').value.trim(),
+    telegram_chat_id: $('alTgChatId').value.trim(),
+    cooldown_seconds: parseInt($('alCooldown').value)||300,
+  };
+}
+async function openAlertModal(){
+  $('alTestOut').textContent='';
+  try{
+    const j=await fetch('/api/alerts/config').then(r=>r.json());
+    const cfg=(j&&j.config)||{};
+    $('alEnabled').checked = !!cfg.enabled;
+    $('alChannel').value = cfg.channel||'webhook';
+    $('alMinLevel').value = cfg.min_level||'WARNING';
+    $('alWebhookUrl').value = cfg.webhook_url||'';
+    $('alWebhookHeaders').value = cfg.webhook_headers||'';
+    $('alBarkKey').value = cfg.bark_key||'';
+    $('alBarkServer').value = cfg.bark_server||'https://api.day.app';
+    $('alServerchanKey').value = cfg.serverchan_key||'';
+    $('alTgToken').value = cfg.telegram_token||'';
+    $('alTgChatId').value = cfg.telegram_chat_id||'';
+    $('alCooldown').value = cfg.cooldown_seconds!=null?cfg.cooldown_seconds:300;
+    onAlertChannelChange();
+  }catch(e){ toast('读取告警配置失败'); }
+  $('alertConfigModal').classList.add('show');
+}
+function closeAlertModal(){ $('alertConfigModal').classList.remove('show'); }
+async function saveAlertConfigFromModal(btn){
+  btn.disabled=true; const old=btn.textContent; btn.textContent='保存中…';
+  try{
+    const r=await fetch('/api/alerts/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_alertModalPayload())});
+    const j=await r.json();
+    if(j.ok){ toast('外部告警配置已保存'); closeAlertModal(); }
+    else toast('保存失败: '+(j.detail||''));
+  }catch(e){ toast('保存请求失败'); }
+  btn.disabled=false; btn.textContent=old;
+}
+async function testAlertFromModal(btn){
+  const out=$('alTestOut'); out.textContent=''; out.style.color='';
+  btn.disabled=true; const old=btn.textContent; btn.textContent='发送中…';
+  try{
+    const r=await fetch('/api/alerts/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_alertModalPayload())});
+    const j=await r.json();
+    if(j.ok){ out.textContent='✓ 测试消息已发送('+(j.elapsed_ms!=null?j.elapsed_ms+'ms':'')+')'; out.style.color='var(--green)'; }
+    else{ out.textContent='✗ '+(j.error||'发送失败,请检查配置与网络'); out.style.color='var(--red)'; }
+  }catch(e){ out.textContent='✗ 请求异常'; out.style.color='var(--red)'; }
+  btn.disabled=false; btn.textContent=old;
+}
+function switchLog(m){ logMode=m; _lastLogSig=''; $('lt-bridge').classList.toggle('on',m==='bridge'); $('lt-server').classList.toggle('on',m==='server'); $('logs').innerHTML=''; renderLogs(); }
+let _lastLogSig = '';
+function renderLogs(){
+  if(!DASH||!DASH.logs) return;
+  const arr = logMode==='bridge'?DASH.logs.bridge:DASH.logs.server;
+  const box=$('logs');
+  if(!arr.length){ box.innerHTML=''; return; }
+  const last = arr[arr.length-1];
+  const sig = (last.time||'')+'|'+(last.method||'')+(last.path||'')+(last.msg||'')+(last.status||'');
+  if(sig === _lastLogSig) return;  // 无新日志,保持滚动位置;有变更才重建
+  _lastLogSig = sig;
+  box.innerHTML='';
+  for(const it of arr){
+    const d=document.createElement('div'); const t=it.time||it.ts||'';
+    if(it.method){ // 服务端请求日志
+      const st=it.status||0;
+      const codeCls = st>=400?'log-err':(st>=300?'log-warn':'log-time');
+      d.innerHTML='<span class="log-time">'+t+'</span> <span class="log-info">'+it.method+'</span> <span class="log-info">'+String(it.path||'').replace(/</g,'&lt;')+'</span> <span class="'+codeCls+'">'+st+'</span>';
+    } else { // 桥日志
+      const msg=String(it.msg||'').replace(/</g,'&lt;');
+      const lv=(it.level||'INFO').toUpperCase();
+      const cls=lv==='ERROR'?'log-err':lv==='WARNING'?'log-warn':'log-info';
+      d.innerHTML='<span class="log-time">'+t+'</span> <span class="'+cls+'">'+msg+'</span>';
+    }
+    box.appendChild(d);
+  }
+  box.scrollTop=box.scrollHeight;
+}
+
+// ─────────── 设置 ───────────
+async function loadSettings(){
+  try{
+    const r=await fetch('/api/dashboard'); const d=await r.json();
+    $('swThinking').checked = d.bridge.thinking!==false;
+    $('swParallel').checked = d.bridge.parallel!==false;
+    $('swAutoDelete').checked = d.server.auto_delete_chat!==false;
+    $('swTemporary').checked = d.server.temporary_chat===true;
+    $('swAutoSwitch').checked = d.server.auto_switch_cookie!==false;
+    const pp=d.bridge.proxy_parsed;
+    if(pp && !$('proxyHost').value){ $('proxyEnabled').checked=true; $('proxyScheme').value=pp.scheme; $('proxyHost').value=pp.host; $('proxyPort').value=pp.port; $('proxyUser').value=pp.username||''; $('proxyPass').value=pp.password||''; }
+    loadAccounts();
+    loadGems();
+  }catch(e){}
+}
+['swThinking','swParallel'].forEach(id=>$(id).addEventListener('change',()=>{
+  const f=id==='swThinking'?'thinking':'parallelTools';
+  fetch('/api/feature',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({feature:f,enabled:$(id).checked})}).then(r=>r.json()).then(j=>toast(j.message||'已保存'));
+}));
+['swAutoDelete','swTemporary'].forEach(id=>$(id).addEventListener('change',()=>{
+  const f=id==='swAutoDelete'?'autoDelete':'temporary';
+  fetch('/api/feature',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({feature:f,enabled:$(id).checked})}).then(r=>r.json()).then(j=>toast(j.message||'已保存'));
+}));
+$('swAutoSwitch').addEventListener('change',()=>{
+  fetch('/api/feature',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({feature:'autoSwitchCookie',enabled:$('swAutoSwitch').checked})}).then(r=>r.json()).then(j=>toast(j.message||'已保存'));
+});
+// ── 积分余额 / Cookie列表(27 账号,分 3 页 × 9,双卡联动)──
+const _ACC_PAGE_SIZE = 9, _ACC_TOTAL = 27, _ACC_PAGES = 3;
+let _accPage = 1, _selCookie = '', _accMeta = {ids:[], pbyId:{}, detMap:{}, active:''};
+function _pageIds(){
+  const ids=_accMeta.ids||[];
+  const out=ids.slice((_accPage-1)*_ACC_PAGE_SIZE, _accPage*_ACC_PAGE_SIZE);
+  while(out.length<_ACC_PAGE_SIZE) out.push('');
+  return out;
+}
+function _renderAccPages(){
+  let html='';
+  for(let i=1;i<=_ACC_PAGES;i++) html+='<button class="acc-page'+(i===_accPage?' on':'')+'" onclick="setAccPage('+i+')">'+i+'</button>';
+  const bp=$('balPages'), cp=$('cookPages');
+  if(bp) bp.innerHTML=html;
+  if(cp) cp.innerHTML=html;
+}
+function setAccPage(n){
+  if(n===_accPage) return;
+  _accPage=n; _selCookie='';
+  // 转场:两张列表同步淡入
+  const bl=$('balanceList'), cl=$('cookieList');
+  if(bl){ bl.classList.remove('anim'); void bl.offsetWidth; bl.classList.add('anim'); }
+  if(cl){ cl.classList.remove('anim'); void cl.offsetWidth; cl.classList.add('anim'); }
+  const {pbyId,detMap,active}=_accMeta;
+  renderBalance(_pageIds(), pbyId, _accMeta.accMap||{}, detMap);
+  renderCookies(_pageIds(), pbyId, detMap, active);
+  _renderAccPages();
+}
+function accountPlaceholder(){
+  // 预渲染当前页 9 行空框架(未登录占位),数据到后再填充——避免刷新时缩回"加载中"跳动
+  let ph='';
+  for(let i=0;i<_ACC_PAGE_SIZE;i++) ph+='<div class="acc-row" style="opacity:.45"><div class="av">＋</div><div class="info"><div class="nm">未登录</div><div class="id">—</div></div><div class="bal gray">—</div></div>';
+  $('balanceList').innerHTML=ph;
+  let ph2='';
+  for(let i=0;i<_ACC_PAGE_SIZE;i++) ph2+='<div class="acc-row" style="opacity:.45"><div class="av">＋</div><div class="info"><div class="nm">未登录</div><div class="id">—</div></div><span class="cook idle">无 Cookie</span></div>';
+  $('cookieList').innerHTML=ph2;
+  _renderAccPages();
+}
+async function loadAccounts(){
+  accountPlaceholder();
+  try{
+    const [pr,acc,dash]=await Promise.all([
+      fetch('http://127.0.0.1:4446/api/profiles').then(r=>r.json()),
+      fetch('/api/accounts').then(r=>r.json()),
+      fetch('/api/dashboard').then(r=>r.json())
+    ]);
+    const detail=(dash.accounts&&dash.accounts.detail)||[];
+    const pbyId={}; (pr.profiles||[]).forEach(p=>pbyId[p.id]=p);
+    const accMap={}; (acc.accounts||[]).forEach(a=>accMap[a.pid]=a);
+    const detMap={}; detail.forEach(a=>detMap[a.pid]=a);
+    const active=acc.active_pid||'';
+    const ids=Array.from(new Set([...(pr.profiles||[]).map(p=>p.id)]));
+    while(ids.length<_ACC_TOTAL) ids.push('');
+    _accMeta={ids,pbyId,accMap,detMap,active};
+    renderBalance(_pageIds(), pbyId, accMap, detMap);
+    renderCookies(_pageIds(), pbyId, detMap, active);
+    _renderAccPages();
+  }catch(e){ $('#balanceList').innerHTML='<span class="hint">加载失败</span>'; }
+}
+function pickCookie(pid){
+  if(!pid) return;
+  _selCookie=(_selCookie===pid)?'':pid;
+  const {ids,pbyId,detMap,active}=_accMeta;
+  const idx=ids.indexOf(pid);
+  const pg=Math.floor(idx/_ACC_PAGE_SIZE)+1;
+  if(pg!==_accPage){ _accPage=pg; _renderAccPages(); }
+  renderCookies(_pageIds(), pbyId, detMap, active);
+}
+function avStr(p){ return (p&&p.basic&&p.basic.avatar)||'🎬'; }
+function nmStr(p,pid){ return (p&&p.basic&&p.basic.name)||pid||'未登录'; }
+function proxyTag(p){
+  const pr=p&&p.proxy||{}; const mode=pr.mode||'direct';
+  if(mode==='direct'||mode===''||mode==='system') return '';
+  const host=pr.host||'', port=pr.port||'';
+  if(mode.indexOf('bound:')===0){ const bid=mode.slice(6); return '<span class="tag violet" title="代理池绑定的窗口">代理池 '+bid+'</span>'; }
+  if(!host) return '';
+  return '<span class="tag violet" title="'+mode+'://'+host+(port?(':'+port):'')+'">代理</span>';
+}
+function resetCountdown(resetAt){
+  if(!resetAt) return '';
+  const t=new Date(resetAt).getTime(); if(isNaN(t)) return '';
+  let ms=t-Date.now();
+  if(ms<=0) return '<span style="font-size:10px;color:var(--green)">已重置</span>';
+  const h=Math.floor(ms/3600000), m=Math.floor(ms%3600000/60000);
+  return '<span style="font-size:10px;color:var(--text-3)" title="'+resetAt+'">'+(h>0?h+'时':'')+m+'分后恢复</span>';
+}
+function ttfbSpark(hist){
+  if(!hist||!hist.length) return '';
+  const vals=hist.map(x=>x.v); const mx=Math.max(30,...vals);
+  const bars=vals.slice(-12).map(v=>{
+    const h=Math.max(2,Math.round(v/mx*14));
+    const col=v>30?'var(--red)':v>10?'#e6a23c':'var(--green)';
+    return '<span style="display:inline-block;width:3px;height:'+h+'px;background:'+col+';margin-right:1px;border-radius:1px" title="TTFB '+v+'s"></span>';
+  }).join('');
+  return '<span style="display:inline-flex;align-items:flex-end;height:14px">'+bars+'</span>';
+}
+function renderBalance(ids,pbyId,accMap,detMap){
+  const box=$('balanceList'); box.innerHTML='';
+  ids.forEach(pid=>{
+    if(!pid){ box.innerHTML+='<div class="acc-row" style="opacity:.5"><div class="av">＋</div><div class="info"><div class="nm">未登录</div><div class="id">—</div></div><div class="bal gray">—</div></div>'; return; }
+    const a=accMap[pid]||{}; const q=a.quota||{}; const rem=q.remaining;
+    const err=!!q.error;
+    const bal = err?'获取失败':(rem==null?'—':rem);
+    const cls = err?'red':(rem==null?'gray':rem<150?'red':'green');
+    // Step1: 健康分 + 熔断状态(同行)
+    const hs=a.health_score, circ=a.circuit||'closed';
+    const hsCol = hs==null?'#999':(hs>=70?'var(--green)':hs>=40?'#e6a23c':'var(--red)');
+    const chip = '<span style="font-size:11px;font-weight:600;color:'+hsCol+'">健康值:'+hs+'</span>';
+    const ctag = circ==='closed'?'':'<span style="font-size:9px;color:var(--red);font-weight:600">●'+circ+'</span>';
+    // 方向二: 代理出口状态(账号绑定代理时显示;判死红色闪烁)
+    let ptag='';
+    if(a.proxy){
+      const ph=a.proxy_health||{};
+      if(ph.alive===false){
+        ptag='<span style="font-size:9px;color:var(--red);font-weight:700;animation:pulse 1.2s infinite">⛔代理断连</span>';
+      }else if(ph.rtt_ms!=null){
+        const pc=ph.rtt_ms<=500?'var(--green)':(ph.rtt_ms<=2000?'#e6a23c':'var(--red)');
+        ptag='<span style="font-size:9px;color:'+pc+'">代理 '+ph.rtt_ms+'ms</span>';
+      }else{
+        ptag='<span style="font-size:9px;color:#999">代理…</span>';
+      }
+    }
+    // Step4: 重置倒计时 + TTFB 走势(第二行)
+    const countdown = resetCountdown(q.reset_at);
+    // 2 行卡片: 左(名字/ID) 中(健康值/熔断 + 已重置/TTFB) 右(余额/隔离)
+    box.innerHTML+='<div class="acc-row"><div class="av">'+avStr(pbyId[pid])+'</div>'
+      +'<div class="info" style="flex:0 1 auto"><div class="nm">'+nmStr(pbyId[pid],pid)+'</div><div class="id">'+pid+'</div></div>'
+      +'<div class="mid"><div class="mid-line">'+chip+ctag+'</div><div class="mid-line">'+ptag+countdown
+      +(a.ttfb_history&&a.ttfb_history.length?ttfbSpark(a.ttfb_history):'')+'</div></div>'
+      +'<div class="right-col"><div class="bal '+cls+'">'+bal+'</div>'
+      +'<button class="mini-btn'+(a.isolated?' warn':'')+'" onclick="event.stopPropagation();isolateAccount(\''+pid+'\','+(a.isolated?'false':'true')+')">'+(a.isolated?'启用':'隔离')+'</button>'
+      +'</div></div>';
+  });
+}
+async function testProxyFromModal(btn){
+  const out=$('fProxyTestOut');
+  const mode=$('fProxyMode').value,host=$('fProxyHost').value.trim(),port=$('fProxyPort').value.trim();
+  if(mode==='direct'||!host){ out.textContent='请先填写代理主机与端口'; out.style.color='var(--red)'; return; }
+  const u=$('fProxyUser').value.trim(),p=$('fProxyPass').value;
+  const url=(u?`${mode}://${u}:${p}@${host}:${port}`:`${mode}://${host}:${port}`);
+  btn.disabled=true; const old=btn.textContent; btn.textContent='测试中…';
+  out.textContent=''; out.style.color='';
+  try{
+    const j=await fetch('/api/proxy-health/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({proxy:url})}).then(r=>r.json());
+    if(j.ok){ out.textContent='✓ 连通 '+j.rtt_ms+'ms'; out.style.color='var(--green)'; }
+    else{ out.textContent='✗ 失败: '+(j.error||'未知'); out.style.color='var(--red)'; }
+  }catch(e){ out.textContent='测试请求失败'; out.style.color='var(--red)'; }
+  btn.disabled=false; btn.textContent=old;
+}
+async function isolateAccount(pid,isolated){
+  try{
+    const r=await fetch('/api/isolate-account',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pid,isolated})});
+    const j=await r.json();
+    toast(j.ok?(isolated?'已隔离 '+pid:'已启用 '+pid):('操作失败: '+(j.error||j.detail||'')));
+    loadAccounts();
+  }catch(e){ toast('隔离操作失败'); }
+}
+function renderCookies(ids,pbyId,detMap,active){
+  const box=$('cookieList'); box.innerHTML='';
+  ids.forEach(pid=>{
+    if(!pid){ box.innerHTML+='<div class="acc-row" style="opacity:.5"><div class="av">＋</div><div class="info"><div class="nm">未登录</div><div class="id">—</div></div><span class="cook idle">无 Cookie</span></div>'; return; }
+    const d=detMap[pid]||{}; const logged=!!d.logged; const alive=!!d.alive;
+    const cookCls = logged?(alive?'ok':'idle'):'no';
+    const cookTxt = logged?(alive?'存活':'待续期'):'未登录';
+    const sel = pid===_selCookie?' sel':'';
+    box.innerHTML+='<div class="acc-row'+sel+'" onclick="pickCookie(\''+pid+'\')"><div class="av">'+avStr(pbyId[pid])+'</div><div class="info"><div class="nm">'+nmStr(pbyId[pid],pid)+'</div><div class="id">'+pid+(pid===active?' · 当前':'')+'</div></div><span class="cook '+cookCls+'">'+cookTxt+'</span></div>';
+  });
+}
+async function refreshBalance(btn){
+  if(btn.classList.contains('busy')) return;
+  btn.classList.add('busy'); const old=btn.textContent; btn.textContent='刷新中…';
+  $('#balRefreshHint').textContent='已开始后台并发刷新,进度逐个更新…';
+  let started=false;
+  try{
+    const j=await fetch('/api/accounts/refresh',{method:'POST'}).then(r=>r.json());
+    started=!!(j.started||j.refreshing);
+  }catch(e){}
+  if(!started){ toast('刷新启动失败'); btn.classList.remove('busy'); btn.textContent=old; $('#balRefreshHint').textContent=''; return; }
+  toast('已开始刷新余额(并发抓取中)');
+  // 轮询进度: 每2s拉账号快照,数据变化才重绘(避免闪烁);完成/超时给汇总气泡
+  const t0=Date.now(); let lastSig='';
+  const timer=setInterval(async()=>{
+    try{
+      const acc=await fetch('/api/accounts').then(r=>r.json());
+      const sig=JSON.stringify(acc.accounts||[])+String(acc.refreshing);
+      const changed=sig!==lastSig;
+      if(changed){ lastSig=sig; loadAccounts(); }
+      const finished=!acc.refreshing;   // 以任务翻转为准;空账号池 summary 为空也能正常结束
+      if(finished||Date.now()-t0>180000){
+        clearInterval(timer);
+        btn.classList.remove('busy'); btn.textContent=old; $('#balRefreshHint').textContent='';
+        if(acc.refreshing){ toast('刷新超时(后台仍在继续,稍后自动更新)'); }
+        else { toast('刷新完成: '+(acc.refresh_summary||'无已登录账号')); loadAccounts(); }
+      }
+    }catch(e){}
+  },2000);
+}
+async function switchSelectedCookie(btn){
+  if(!_selCookie){ toast('请先选中一个 Cookie'); return; }
+  btn.disabled=true;
+  try{ const r=await fetch('/api/switch-account',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pid:_selCookie})}); const j=await r.json(); toast(j.ok?'已切换 Cookie':'切换失败: '+(j.error||'')); setTimeout(()=>loadAccounts(),1200);}
+  catch(e){ toast('切换失败'); } btn.disabled=false;
+}
+async function sendChat(btn){
+  const p=$('chatPrompt').value.trim(); if(!p) return;
+  const body=$('chatBody');
+  body.innerHTML+='<div class="bubble user">'+p.replace(/</g,'&lt;')+'</div>';
+  $('chatPrompt').value=''; btn.disabled=true; body.scrollTop=body.scrollHeight;
+  try{
+    const model=$('chatModel').value;
+    const d=await fetch('/api/dashboard').then(r=>r.json());
+    const r=await fetch('http://127.0.0.1:4444/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(d.bridge.api_key||'')},body:JSON.stringify({model:model,messages:[{role:'user',content:p}],stream:false})});
+    const j=await r.json();
+    const txt = j.choices?(j.choices[0].message.content||''):('(错误) '+(j.error||JSON.stringify(j)).slice(0,300));
+    body.innerHTML+='<div class="bubble ai">'+txt.replace(/</g,'&lt;')+'</div>';
+  }catch(e){ body.innerHTML+='<div class="bubble ai">(请求失败 '+e+')</div>'; }
+  btn.disabled=false; body.scrollTop=body.scrollHeight;
+}
+async function saveProxy(btn){ btn.disabled=true;
+  const body={enabled:$('proxyEnabled').checked,scheme:$('proxyScheme').value,host:$('proxyHost').value.trim(),port:$('proxyPort').value.trim(),user:$('proxyUser').value.trim(),pass:$('proxyPass').value};
+  try{
+    const r=await fetch('/api/proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const j=await r.json(); $('proxyMsg').textContent=j.message||'';
+    // 同步应用到所有账号窗口(服务端+窗口共用同一代理)
+    const r2=await fetch('http://127.0.0.1:4446/api/proxy/apply-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    try{ const j2=await r2.json(); if(j2.ok) $('proxyMsg').textContent=(j.message||'已保存')+' (已同步到 '+j2.applied+' 个窗口)'; }catch(e){}
+  }catch(e){ $('proxyMsg').textContent='失败'; } btn.disabled=false;
+}
+async function testProxy(btn){ btn.disabled=true; $('proxyMsg').textContent='检测中…';
+  try{
+    const sch=$('proxyScheme').value;
+    const mode= sch==='socks5h'?'socks5':(sch==='http'?'http':(sch==='https'?'https':sch));
+    const body={mode:mode,host:$('proxyHost').value.trim(),port:$('proxyPort').value.trim(),username:$('proxyUser').value.trim(),password:$('proxyPass').value};
+    const r=await fetch('http://127.0.0.1:4446/api/utils/ip-query-live',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json();
+    const info=j.ip_info;
+    $('proxyMsg').textContent = info?('✓ 代理可用 · '+info.ip+' ('+(info.country||'')+')'):('✗ 代理不可用');
+  }catch(e){ $('proxyMsg').textContent='检测失败'; } btn.disabled=false;
+}
+async function action(a,btn){ btn.disabled=true;
+  try{ await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:a})}); toast('已提交'); setTimeout(()=>refreshDash(),1500); }
+  catch(e){ toast('提交失败'); } btn.disabled=false;
+}
+async function switchAccount(btn){ const pid=$('switchAccSel').value; if(!pid){toast('请选择账号');return;} btn.disabled=true;
+  try{ const r=await fetch('/api/switch-account',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pid})}); const j=await r.json(); toast(j.ok?'已切换':'切换失败: '+(j.error||'')); setTimeout(()=>refreshDash(),1500);}catch(e){toast('切换失败');} btn.disabled=false;
+}
+async function loadGems(){
+  const q=($('gemSearch').value||'').toLowerCase();
+  const ctrl=new AbortController(); const _t=setTimeout(()=>ctrl.abort(),10000);
+  try{ const r=await fetch('/api/gems',{signal:ctrl.signal}); const j=await r.json();
+    const pre=$('gemPre'), cus=$('gemCus');
+    pre.innerHTML=''; cus.innerHTML='';
+    let pc=0,cc=0;
+    (j.gems||[]).forEach(g=>{
+      if(q && !(String(g.name||'').toLowerCase().includes(q)) && !(String(g.description||'').toLowerCase().includes(q))) return;
+      const cur=g.id===j.current_gem_id;
+      const isPre=!!g.predefined;
+      const card=document.createElement('div'); card.className='gem-card';
+      card.innerHTML='<span class="gem-tag '+(isPre?'pre':'cus')+'">'+(isPre?'预置':'自建')+'</span><span class="n">'+(g.name||g.id)+'</span>'+(cur?'<span class="cur">当前</span>':'');
+      const b=document.createElement('button'); b.className='btn-sm'; b.textContent=cur?'停用':'激活';
+      b.onclick=()=>gemAct(g.id,cur?'deactivate':'activate');
+      card.appendChild(b); (isPre?pre:cus).appendChild(card); isPre?pc++:cc++;
+    });
+    if(!pc) pre.innerHTML='<span class="hint">暂无预置 Gem</span>';
+    if(!cc) cus.innerHTML='<span class="hint">暂无自建 Gem</span>';
+  }catch(e){ const pre=$('gemPre'),cus=$('gemCus'); pre.innerHTML=cus.innerHTML='<span class="hint">加载失败(服务端未就绪)</span>'; }
+  finally{ clearTimeout(_t); }
+}
+$('gemSearch').addEventListener('input', loadGems);
+function openGemModal(){ ['nGemName','nGemDesc','nGemPrompt'].forEach(i=>$(i).value=''); $('gemModal').classList.add('show'); }
+function closeGemModal(){ $('gemModal').classList.remove('show'); }
+async function gemAct(id,act){ await fetch('/api/gems',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:act,gem_id:id})}); loadGems(); }
+async function createGem(btn){
+  const name=$('nGemName').value.trim(), prompt=$('nGemPrompt').value.trim();
+  if(!name||!prompt){ toast('名称和 System Prompt 必填'); return; }
+  btn.disabled=true;
+  await fetch('/api/gems',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'create',name,prompt,description:$('nGemDesc').value.trim()})});
+  btn.disabled=false; closeGemModal(); loadGems(); toast('已创建');
+}
+async function quickTest(btn){ const p=$('testPrompt').value.trim(); if(!p){toast('输入测试消息');return;} btn.disabled=true; $('testMsg').textContent='请求中…';
+  try{
+    const r=await fetch('http://127.0.0.1:4444/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+DASH.bridge.api_key},body:JSON.stringify({model:'gemini-flash',messages:[{role:'user',content:p}],stream:false})});
+    const j=await r.json();
+    $('testMsg').textContent = j.choices?('✓ '+(j.choices[0].message.content||'').slice(0,200)):('✗ '+(j.error||JSON.stringify(j)).slice(0,200));
+  }catch(e){ $('testMsg').textContent='请求失败: '+e; } btn.disabled=false;
+}
+
+// ─────────── 指纹浏览器管理 ───────────
+async function loadFp(){
+  try{
+    const [pr,ac,dash]=await Promise.all([
+      fetch('http://127.0.0.1:4446/api/profiles').then(r=>r.json()),
+      fetch('/api/accounts').then(r=>r.json()),
+      fetch('/api/dashboard').then(r=>r.json())
+    ]);
+    const st=await fetch('http://127.0.0.1:4446/api/browser/status').then(r=>r.json());
+    FP_ACCOUNTS=pr.profiles||[];
+    const running=new Set(st.active_pids||[]), background=new Set(st.background_pids||[]);
+    const det=(dash.accounts&&dash.accounts.detail)||[];
+    const logged=det.filter(a=>a.logged).length, alive=det.filter(a=>a.alive).length;
+    const box=$('fpCards'); box.innerHTML='';
+    $('fpStats').textContent='窗口 '+FP_ACCOUNTS.length+' · 运行中 '+running.size+' · 后台 '+background.size+' · 登录 '+logged+' · Cookie 存活 '+alive;
+    $('fpEmpty').style.display = FP_ACCOUNTS.length?'none':'block';
+    FP_ACCOUNTS.forEach(p=>{
+      const id=p.id, name=(p.basic&&p.basic.name)||id, av=(p.basic&&p.basic.avatar)||'🎬';
+      const isRun=running.has(id), isBg=background.has(id), sel=fpSel.has(id);
+      const stStatus = isRun?'运行中':(isBg?'后台':'已关闭');
+      const stCls = isRun?'on':(isBg?'bg':'off');
+      const acc=(det||[]).find(a=>a.pid===id);
+      const osFam=(p.os&&p.os.family)||'windows';
+      const created=(p.created_at||'').slice(0,10)||'';
+      const logged=!!(acc&&acc.logged), alive=!!(acc&&acc.alive);
+      const card=document.createElement('div');
+      card.className='card'+(fpSelecting?' selectable':'')+(sel?' sel':'');
+      if(fpSelecting) card.onclick=()=>{ sel?fpSel.delete(id):fpSel.add(id); loadFp(); };
+      card.innerHTML=
+        '<div class="card-status '+stCls+'">'+stStatus+'</div>'+
+        '<div class="card-header"><div class="card-avatar">'+av+'</div><div class="card-info"><div class="card-name">'+name+'</div><div class="card-id">'+id+'</div></div></div>'+
+        '<div class="card-meta">'+
+          '<span class="tag gray">'+osFam+'</span>'+
+          (p.kernel_version?'<span class="tag">Chrome '+p.kernel_version+'</span>':'')+
+          (created?'<span class="tag gray">'+created+'</span>':'')+
+          '<span class="tag '+(logged?'green':'gray')+'">'+(logged?'已登录':'未登录')+'</span>'+
+          (alive?'<span class="tag green">Cookie 存活</span>':'')+
+          proxyTag(p)+
+        '</div>'+
+        '<div class="card-actions">'+
+          '<button class="btn-sm play" onclick="fpOpen(\''+id+'\')">打开</button>'+
+          '<button class="btn-sm stop" onclick="fpClose(\''+id+'\')">关闭</button>'+
+          '<button class="btn-sm" onclick="fpCookies(\''+id+'\')">Cookie 管理</button>'+
+          '<button class="btn-sm" onclick="fpAccounts(\''+id+'\')">账号管理</button>'+
+        '</div>'+
+        '<div class="card-actions" style="margin-top:8px">'+
+          '<button class="btn-sm dim" onclick="fpClearCache(\''+id+'\')">清缓存</button>'+
+          '<button class="btn-sm" onclick="openEditModal(\''+id+'\')">编辑</button>'+
+          '<button class="btn-sm" onclick="fpDel(\''+id+'\')" style="color:var(--red)">删除</button>'+
+        '</div>';
+      box.appendChild(card);
+    });
+  }catch(e){ $('fpCards').innerHTML='<span class="hint">管理服务不可用(4446)</span>'; }
+}
+let _fpOpenPoll=null;
+async function fpOpen(pid){ const r=await fetch('http://127.0.0.1:4446/api/browser/open?pid='+pid,{method:'POST'}); const j=await r.json(); toast((j.status==='opened'||j.status==='already_open')?'窗口已打开':('打开失败: '+(j.error||j.status))); loadFp();
+  // 快速轮询刷新卡片,窗口转运行中立刻反映(最多~16s)
+  if(_fpOpenPoll) clearInterval(_fpOpenPoll);
+  let n=0; _fpOpenPoll=setInterval(()=>{ loadFp(); if(++n>20){ clearInterval(_fpOpenPoll); _fpOpenPoll=null; } }, 800);
+  setTimeout(()=>{ if(_fpOpenPoll){ clearInterval(_fpOpenPoll); _fpOpenPoll=null; } }, 16000);
+}
+async function fpClose(pid){ await fetch('http://127.0.0.1:4446/api/browser/close?pid='+pid,{method:'POST'}); loadFp(); }
+let _cfCb=null;
+function showConfirm(title,msg,onOk){ $('cfTitle').textContent=title; $('cfMsg').innerHTML=msg; _cfCb=onOk; $('confirmModal').classList.add('show'); }
+function closeConfirm(){ $('confirmModal').classList.remove('show'); _cfCb=null; }
+function cfOk(){ const cb=_cfCb; closeConfirm(); if(cb) cb(); }
+function fpDel(pid){ showConfirm('删除窗口','确定删除窗口 <b style="color:var(--violet)">'+pid+'</b> 吗?<br><span class="hint">将删除其全部指纹配置、Cookie 与缓存,不可恢复。</span>', async function(){ try{ await fetch('http://127.0.0.1:4446/api/profiles/'+pid,{method:'DELETE'}); toast('已删除'); loadFp(); }catch(e){ toast('删除失败'); } }); }
+async function fpClearCache(pid){ try{ const r=await fetch('http://127.0.0.1:4446/api/profiles/'+pid+'/clear-cache',{method:'POST'}); const j=await r.json(); toast(j.ok?'已清缓存':'清缓存失败'); }catch(e){ toast('清缓存失败'); } }
+async function fpAccounts(pid){ $('ckModal').classList.add('show'); $('ckTitle').textContent='账号管理 · '+pid; $('ckBody').innerHTML='<span class="hint">加载中…</span>';
+  try{ const r=await fetch('http://127.0.0.1:4446/api/profiles/'+pid+'/accounts'); const j=await r.json(); const accs=j.accounts||[];
+    let html='<div style="margin-bottom:10px"><b style="color:var(--green)">'+accs.length+'</b> 个已保存账号(访问登录页时自动填充)</div>';
+    if(accs.length){ accs.slice(0,20).forEach(a=>{ html+='<div style="background:var(--bg-2);border:1px solid var(--hairline);border-radius:8px;padding:8px 12px;margin-bottom:6px"><b>'+(a.host||a.platform)+'</b> · '+a.username+'</div>'; }); }
+    else html+='<span class="hint">暂无账号。保存账号后,访问对应登录页可自动填充。</span>';
+    html+='<div style="margin-top:12px"><label>平台/网址(默认 Google 登录)</label><input id="akHost" placeholder="accounts.google.com(或任意登录网址)" autocomplete="off" style="width:100%"><label>用户名</label><input id="akUser" autocomplete="off" autofill="off" style="width:100%"><label>密码</label><input id="akPass" type="password" autocomplete="new-password" style="width:100%"><label>2FA 密钥(可选,用于自动 2FA 接码)</label><input id="akTotp" autocomplete="off" placeholder="6 位密钥或 otpauth:// 地址" style="width:100%"><button class="btn btn-primary" style="margin-top:8px" onclick="fpAddAccount(\''+pid+'\')">添加账号</button></div>';
+    $('ckBody').innerHTML=html;
+  }catch(e){ $('ckBody').innerHTML='<span class="hint">加载失败</span>'; }
+}
+async function fpAddAccount(pid){ const host=$('akHost').value.trim(), user=$('akUser').value.trim(), pass=$('akPass').value.trim(); if(!host||!user||!pass){ toast('填写完整'); return; }
+  try{ const r=await fetch('http://127.0.0.1:4446/api/profiles/'+pid+'/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:host,username:user,password:pass,totp_secret:$('akTotp').value.trim()})}); const j=await r.json(); toast(j.ok?'账号已保存':'保存失败'); fpAccounts(pid); }catch(e){ toast('保存失败'); }
+}
+function fpSelectMode(){ fpSelecting=!fpSelecting; fpSel.clear(); $('selectBar').style.display=fpSelecting?'flex':'none'; loadFp(); }
+// ── Cookie 机器人(批量预热:为勾选窗口产生真实 Cookie 与访问历史) ──
+let _robotJobId = null, _robotTimer = null;
+function cookieRobot(){
+  $('robotModal').classList.add('show'); $('robotProgress').textContent='';
+  loadRobotPids();
+}
+function closeRobotModal(){
+  $('robotModal').classList.remove('show');
+  if(_robotTimer){ clearInterval(_robotTimer); _robotTimer=null; _robotJobId=null; }
+}
+async function loadRobotPids(){
+  try{
+    const r = await fetch('http://127.0.0.1:4446/api/profiles'); const d = await r.json();
+    const el = $('robotPidList'); const ps = d.profiles||[];
+    if(!ps.length){ el.innerHTML='<span class="hint">暂无窗口,先创建指纹浏览器</span>'; return; }
+    el.innerHTML = ps.map(p=>{
+      const nm=(p.basic&&p.basic.name)||p.id;
+      return '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.9rem">'
+        +'<input type="checkbox" class="rb-pid" value="'+p.id+'">'
+        +'<span>'+(p.basic&&p.basic.avatar||'🎬')+' '+nm+' <span style="color:var(--text-3);font-size:.78rem">'+p.id+'</span></span></label>';
+    }).join('');
+  }catch(e){ $('robotPidList').innerHTML='<span class="hint">加载失败(管理服务不可用)</span>'; }
+}
+async function runRobot(){
+  const pids=[...document.querySelectorAll('.rb-pid:checked')].map(x=>x.value);
+  const urls=$('robotUrls').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const dwell=parseFloat($('robotDwell').value)||4;
+  if(!pids.length){ toast('请勾选至少一个窗口'); return; }
+  if(!urls.length){ toast('请填写至少一个网址'); return; }
+  $('robotRunBtn').disabled=true; $('robotProgress').textContent='机器人运行中…';
+  try{
+    const r=await fetch('http://127.0.0.1:4446/api/cookie-robot/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pids:pids,urls:urls,dwell:dwell})});
+    if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(j.detail||('HTTP '+r.status)); }
+    const d=await r.json(); _robotJobId=d.job_id;
+    _robotTimer=setInterval(pollRobot,1500);
+  }catch(e){ toast('启动失败: '+e.message); $('robotRunBtn').disabled=false; }
+}
+async function pollRobot(){
+  if(!_robotJobId) return;
+  try{
+    const r=await fetch('http://127.0.0.1:4446/api/cookie-robot/status/'+_robotJobId);
+    const d=await r.json(); const meta=d._meta||{}; const lines=[];
+    for(const k in d){ if(k==='_meta') continue; const j=d[k];
+      let s=k+': ';
+      if(j.status==='skipped_running'){ s+='运行中已跳过'; }
+      else{ s+=j.status+' ('+(j.done||0)+'/'+(j.total||0)+')'; if(j.errors&&j.errors.length) s+=' ⚠'+j.errors.length+' 个失败'; }
+      if(j.note) s+=' — '+j.note;
+      lines.push(s);
+    }
+    $('robotProgress').innerHTML=lines.join('<br>');
+    if(meta.status==='done'){
+      clearInterval(_robotTimer); _robotTimer=null; _robotJobId=null;
+      $('robotRunBtn').disabled=false;
+      $('robotProgress').innerHTML+='<br><b style="color:var(--green)">全部完成</b>';
+      loadFp();
+    }
+  }catch(e){}
+}
+async function fpBatch(kind){ const ids=[...fpSel]; if(!ids.length){toast('先选择窗口');return;}
+  if(kind==='open') for(const p of ids) await fetch('http://127.0.0.1:4446/api/browser/open?pid='+p,{method:'POST'});
+  if(kind==='close') for(const p of ids) await fetch('http://127.0.0.1:4446/api/browser/close?pid='+p,{method:'POST'});
+  if(kind==='delete'){ if(!confirm('批量删除 '+ids.length+' 个窗口?'))return; for(const p of ids) await fetch('http://127.0.0.1:4446/api/profiles/'+p,{method:'DELETE'}); }
+  fpSel.clear(); loadFp(); toast('完成');
+}
+async function fpCookies(pid){ $('ckModal').classList.add('show'); $('ckTitle').textContent='Cookie 管理 · '+pid; $('ckBody').innerHTML='<span class="hint">加载中…</span>';
+  try{ const r=await fetch('http://127.0.0.1:4446/api/profiles/'+pid+'/cookies/manage'); const j=await r.json();
+    const st=j.stats||{};
+    let html='<div style="margin-bottom:12px"><b>'+st.site_count+'</b> 站点 · <b style="color:var(--green)">'+st.login_count+'</b> 登录凭证 · <b style="color:var(--red)">'+st.expired_count+'</b> 已过期</div>';
+    (j.login_sites||[]).slice(0,15).forEach(s=>{ html+='<div style="background:var(--bg-2);border:1px solid var(--hairline);border-radius:8px;padding:8px 12px;margin-bottom:6px"><div><b>'+s.name+'</b> <span class="tag '+(s.expired_count?'gray':'green')+'">'+(s.login_count)+' 凭证</span></div></div>'; });
+    if(!(j.login_sites||[]).length) html+='<span class="hint">暂无登录站点(窗口内登录后刷新)</span>';
+    $('ckBody').innerHTML=html;
+  }catch(e){ $('ckBody').innerHTML='<span class="hint">读取失败</span>'; }
+}
+function closeCkModal(){ $('ckModal').classList.remove('show'); }
+
+// ─────────── 添加/编辑账号弹窗 ───────────
+const EMOJIS=['🎬','🎯','🎨','🎵','📊','🚀','💡','🔥','🌟','📱','🎮','💎','🌍','🛒','📰','🧠','⚙️','🔬','🎧','🖥️'];
+let _fpAvatar='🎬';
+function renderAvatar(){ const d=$('avatarDisplay'); d.textContent=_fpAvatar; }
+function toggleEmojiPick(){
+  const b=$('emojiPick');
+  if(b.classList.contains('show')){ b.classList.remove('show'); return; }
+  if(!b.innerHTML){ b.innerHTML=EMOJIS.map(e=>'<span onclick="pickEmoji(\''+e+'\')">'+e+'</span>').join(''); }
+  b.classList.add('show');
+}
+function pickEmoji(e){ _fpAvatar=e; renderAvatar(); $('emojiPick').classList.remove('show'); }
+function onOsChange(){
+  const fam=$('fOsFam').value;
+  const row=$('fOsVerRow'), sel=$('fOsVer');
+  if(fam==='windows'){ row.style.display='block'; sel.innerHTML='<option value="win10">Win10</option><option value="win11">Win11</option>'; sel.value='win10'; }
+  else if(fam==='macos'){ row.style.display='block'; sel.innerHTML='<option value="14_5">14.5(macOS)</option><option value="14_4">14.4</option>'; sel.value='14_5'; }
+  else { row.style.display='block'; sel.innerHTML='<option value="ubuntu22">Ubuntu 22.04</option><option value="ubuntu24">Ubuntu 24.04</option>'; sel.value='ubuntu22'; }
+}
+// 生成与 OS/内核匹配的真实 UA(参考 OpenMedia)
+function genUA(fam, chromeVer){
+  if(fam==='windows') return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/'+chromeVer+' Safari/537.36';
+  if(fam==='macos') return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/'+chromeVer+' Safari/537.36';
+  return 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/'+chromeVer+' Safari/537.36';
+}
+function randomizeFp(btn){
+  const fam=['windows','windows','windows','macos','linux'][Math.floor(Math.random()*5)];
+  $('fOsFam').value=fam; onOsChange();
+  if(fam==='macos') $('fOsVer').value='14_5';
+  else if(fam==='linux') $('fOsVer').value='ubuntu22';
+  else $('fOsVer').value=Math.random()<.5?'win10':'win11';
+  // UA:与 OS 匹配 + 内核 Chrome 号(未选内核则用最近 Chrome)
+  const kernel=$('fKernel').value;
+  const chromeVer = kernel? (kernel+'.0.0.0') : '152.0.0.0';
+  $('fUa').value=genUA(fam, chromeVer);
+  // WebGL 按 OS 池
+  const wgl = fam==='macos'?['Apple Inc.','Apple M2']
+    : fam==='linux'?['Google Inc. (Intel)','ANGLE (Intel, Mesa Intel(R) UHD Graphics 630, OpenGL 4.6)']
+    : ['Google Inc. (NVIDIA)','ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Direct3D11)'];
+  $('fWebglV').value=wgl[0]; $('fWebglR').value=wgl[1];
+  $('fCpu').value=['4','8','12','16'][Math.floor(Math.random()*4)];
+  $('fMem').value=['8','16','32'][Math.floor(Math.random()*3)];
+  toast('已随机化真实指纹(OS/UA/WebGL/硬件)');
+}
+async function downloadKernel(btn){
+  const k=$('fKernel').value; if(!k){ toast('先选择内核版本'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='下载中…'; }
+  try{
+    const r=await fetch('http://127.0.0.1:4446/api/kernels/'+k+'/download',{method:'POST'});
+    const j=await r.json();
+    toast(j.ok?('内核已下载,重启窗口生效'):('下载失败: '+(j.error||''))); loadKernels();
+  }catch(e){ toast('下载失败(网络/超时)'); }
+  if(btn){ btn.disabled=false; btn.textContent='下载'; }
+}
+function fpResetForm(){
+  ['fName','fWebglV','fWebglR','fUa','fUrls'].forEach(i=>$(i).value=''); $('fNote').value='';
+  _fpAvatar='🎬'; renderAvatar(); $('fOsFam').value='windows'; onOsChange(); $('fOsVer').value='win10'; $('fKernel').value='';
+  $('fCpu').value=8; $('fMem').value=16; $('fWebrtc').value='private'; $('fGeoMode').value='ask';
+  $('fGeoIp').checked=true; $('fLangFollow').checked=true; $('fHwAccel').checked=true; $('fIgnoreHttps').checked=false;
+  $('fUrls').value='https://gemini.google.com';
+  // 每窗口代理:新建默认直连
+  $('fProxyMode').value='direct'; $('fProxyHost').value=''; $('fProxyPort').value='';
+  $('fProxyUser').value=''; $('fProxyPass').value='';
+}
+async function openCreateModal(){ curEditPid=null; $('fpModalTitle').textContent='添加账号'; fpResetForm(); $('fpModal').classList.add('show'); await loadKernels(); }
+async function openEditModal(pid){ const p=FP_ACCOUNTS.find(x=>x.id===pid); if(!p)return; curEditPid=pid;
+  const b=p.basic||{},o=p.os||{},l=p.language||{},w=p.webgl||{},h=p.hardware||{},g=p.geolocation||{};
+  $('fpModalTitle').textContent='编辑 '+pid;
+  $('fName').value=b.name||''; $('fNote').value=b.note||''; _fpAvatar=b.avatar||'🎬'; renderAvatar();
+  $('fKernel').value=p.kernel_version||''; $('fOsFam').value=o.family||'windows'; onOsChange(); $('fOsVer').value=o.version||'win10';
+  $('fUa').value=p.ua||''; $('fWebglV').value=w.vendor||''; $('fWebglR').value=w.renderer||'';
+  $('fCpu').value=h.cpu_cores||8; $('fMem').value=h.memory_gb||16;
+  $('fWebrtc').value=p.webrtc||'private'; $('fGeoMode').value=g.mode||'ask';
+  $('fGeoIp').checked=g.based_on_ip!==false; $('fLangFollow').checked=l.follow_ip!==false;
+  $('fHwAccel').checked=b.hw_accel!==false; $('fIgnoreHttps').checked=!!p.ignore_https_errors;
+  $('fUrls').value=(b.startup_urls||[]).join('\n');
+  // 每窗口代理回填
+  const pr=p.proxy||{}; $('fProxyMode').value=pr.mode||'direct'; $('fProxyHost').value=pr.host||'';
+  $('fProxyPort').value=pr.port||''; $('fProxyUser').value=pr.username||''; $('fProxyPass').value=pr.password||'';
+  $('fpModal').classList.add('show'); await loadKernels();
+}
+async function loadKernels(){ try{ const r=await fetch('http://127.0.0.1:4446/api/kernels'); const j=await r.json(); const sel=$('fKernel'); const cur=sel.value; sel.innerHTML='<option value="">系统默认</option>'; Object.keys(j.kernels||{}).forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent='Chrome '+k+(j.kernels[k].installed?'':' (未下载)'); sel.appendChild(o); }); sel.value=cur; }catch(e){} }
+function closeModal(){ $('fpModal').classList.remove('show'); }
+async function saveProfile(btn){
+  const data={ basic:{name:$('fName').value.trim()||('账号'+Date.now()%10000),avatar:_fpAvatar||'🎬',note:$('fNote').value.trim(),startup_urls:($('fUrls').value||'').split('\n').map(s=>s.trim()).filter(Boolean).length?($('fUrls').value||'').split('\n').map(s=>s.trim()).filter(Boolean):['https://gemini.google.com'],hw_accel:$('fHwAccel').checked},
+    os:{family:$('fOsFam').value,version:$('fOsVer').value}, kernel_version:$('fKernel').value, ua:$('fUa').value.trim(),
+    webrtc:$('fWebrtc').value, ignore_https_errors:$('fIgnoreHttps').checked,
+    webgl:{vendor:$('fWebglV').value.trim(),renderer:$('fWebglR').value.trim()},
+    hardware:{cpu_cores:parseInt($('fCpu').value)||8,memory_gb:parseInt($('fMem').value)||16},
+    language:{follow_ip:$('fLangFollow').checked,locale:'zh-CN',timezone:'Asia/Shanghai'},
+    geolocation:{mode:$('fGeoMode').value,based_on_ip:$('fGeoIp').checked,lat:0,lon:0,accuracy:100},
+    proxy:{mode:$('fProxyMode').value,host:$('fProxyHost').value.trim(),port:parseInt($('fProxyPort').value)||0,username:$('fProxyUser').value.trim(),password:$('fProxyPass').value} };
+  btn.disabled=true;
+  try{
+    if(curEditPid){ await fetch('http://127.0.0.1:4446/api/profiles/'+curEditPid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); toast('已保存'); }
+    else{ const r=await fetch('http://127.0.0.1:4446/api/profiles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); const j=await r.json(); toast('已创建 '+j.id); }
+    closeModal(); loadFp();
+  }catch(e){ toast('保存失败'); } btn.disabled=false;
+}
+
+// ─────────── 定时刷新 ───────────
+setInterval(()=>{ if($('p-dash').classList.contains('active')) refreshDash(); }, 3000);
+setInterval(()=>{ if($('p-fp').classList.contains('active')) loadFp(); }, 2000);
+setInterval(()=>{ if($('p-settings').classList.contains('active')) loadAccounts(); }, 20000);
+refreshDash(); loadSettings();
+</script></body></html>

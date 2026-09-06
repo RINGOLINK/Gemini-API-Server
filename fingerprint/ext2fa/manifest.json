@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Gemini 2FA Autofill",
+  "version": "1.0.0",
+  "description": "指纹窗口专用 TOTP 2FA 自动填充(每窗口数据隔离)",
+  "permissions": ["storage"],
+  "host_permissions": ["https://accounts.google.com/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://accounts.google.com/*"],
+      "js": ["totp.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}

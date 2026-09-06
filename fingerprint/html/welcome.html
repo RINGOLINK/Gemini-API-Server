@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>欢迎</title>
+<style>
+:root{--brand:#8b5cf6;--bg:#0b0b0f;--panel:#16161d;--border:#26262f;--text:#e8e8ee;--muted:#8a8a96}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 20px;color-scheme:dark}
+.wrap{width:100%;max-width:760px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:18px}
+.ip-hero{background:linear-gradient(135deg,rgba(139,92,246,.18),rgba(139,92,246,.05));border:1px solid rgba(139,92,246,.3);text-align:center}
+.ip-line{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap}
+.ip-addr{font-size:2.4rem;font-weight:700;letter-spacing:1px;font-family:"Consolas","Monaco",monospace}
+.ip-copy{cursor:pointer;opacity:.7;transition:.15s;font-size:1.2rem;background:none;border:none;color:var(--text)}
+.ip-copy:hover{opacity:1;transform:scale(1.1)}
+.ip-check{background:var(--brand);color:#fff;border:none;padding:9px 18px;border-radius:10px;font-size:.85rem;cursor:pointer;font-weight:600;transition:.15s;text-decoration:none;display:inline-block}
+.ip-check:hover{filter:brightness(1.15)}
+.ip-loc{margin-top:14px;font-size:1rem;color:var(--text)}
+.ip-loc .flag{margin-right:6px}
+.ip-meta{display:flex;justify-content:center;gap:22px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px dashed rgba(255,255,255,.12);font-size:.82rem;color:var(--muted)}
+.ip-meta b{color:var(--text);font-weight:600}
+.ip-detect{margin-top:16px;font-size:.85rem;color:var(--muted)}
+.ip-detect a{color:var(--brand);text-decoration:none;margin:0 4px;transition:.15s}
+.ip-detect a:hover{text-decoration:underline}
+.loading{color:var(--muted);font-size:1rem;padding:20px}
+.err{color:#f87171;font-size:.9rem;padding:14px}
+.info-title{font-size:.95rem;color:var(--brand);font-weight:600;margin-bottom:16px;letter-spacing:.5px}
+.info-row{display:flex;padding:11px 0;border-bottom:1px solid var(--border);font-size:.88rem}
+.info-row:last-child{border-bottom:none}
+.info-row .k{width:110px;color:var(--muted);flex-shrink:0}
+.info-row .v{color:var(--text);word-break:break-all;flex:1}
+/* 头部：头像+名称 */
+.info-avatar{display:flex;align-items:center;gap:18px;padding:6px 0 20px;margin-bottom:6px;border-bottom:1px solid var(--border)}
+.info-avatar .av{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2rem;background:linear-gradient(135deg,var(--brand),#6d28d9);flex-shrink:0;overflow:hidden;box-shadow:0 4px 14px rgba(139,92,246,.3)}
+.info-avatar .av img{width:100%;height:100%;object-fit:cover}
+.info-avatar .av-txt{display:flex;flex-direction:column;gap:6px}
+.info-avatar .av-name{font-size:1.35rem;font-weight:700;letter-spacing:.3px}
+.info-avatar .av-sub{display:flex;align-items:center;gap:10px;font-size:.85rem;color:var(--muted)}
+.av-seq{color:var(--brand);font-weight:700;font-family:"Consolas",monospace}
+/* 检测站文字链接 */
+.ip-detect{margin-top:18px;font-size:.85rem;color:var(--muted);text-align:center}
+.ip-detect a{color:var(--brand);text-decoration:none;margin:0 3px;transition:.15s}
+.ip-detect a:hover{text-decoration:underline;filter:brightness(1.2)}
+.dt-sep{margin:0 3px;opacity:.4}
+.ua{font-family:"Consolas",monospace;font-size:.76rem;color:var(--muted);line-height:1.5}
+.foot{text-align:center;color:var(--muted);font-size:.75rem;margin-top:8px;opacity:.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card ip-hero" id="ipCard">
+    <div class="loading">正在检测当前网络出口…</div>
+  </div>
+  <div class="card" id="infoCard" style="display:none">
+    <div class="info-title">窗口信息</div>
+    <div id="infoBody"></div>
+  </div>
+  <div class="foot">OpenMedia 指纹浏览器</div>
+</div>
+
+<script>
+var PID = new URLSearchParams(location.search).get("pid") || "";
+
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(m){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})}
+
+function flagEmoji(cc){
+  if(!cc||cc.length!==2)return "\u{1F310}";
+  try{return String.fromCodePoint.apply(null,cc.toUpperCase().split("").map(function(c){return 127397+c.charCodeAt(0)}))}catch(e){return "\u{1F310}"}
+}
+
+var DETECT_SITES = [
+  {name:"ToDetect", url:"https://www.todetect.cn/"},
+  {name:"BrowserLeaks", url:"https://browserleaks.com/"},
+  {name:"IPCS", url:"https://ipcs.vip/"},
+  {name:"AmIUnique", url:"https://amiunique.org/"},
+  {name:"IPScore", url:"https://www.ipscore.cn/"}
+];
+
+async function load(){
+  if(!PID){
+    document.getElementById("ipCard").innerHTML = '<div class="err">缺少窗口标识（pid）。请从指纹浏览器窗口正常启动。</div>';
+    return;
+  }
+  var d;
+  try{
+    var r = await fetch("/api/profiles/"+encodeURIComponent(PID)+"/welcome-data");
+    if(!r.ok){throw new Error("HTTP "+r.status)}
+    d = await r.json();
+  }catch(e){
+    document.getElementById("ipCard").innerHTML = '<div class="err">加载失败：'+esc(e.message)+'</div>';
+    return;
+  }
+  renderIP(d);
+  renderInfo(d);
+}
+
+function renderIP(d){
+  var ip = d.ip_info && d.ip_info.ip;
+  var h = "";
+  if(ip){
+    var loc = [d.ip_info.country, d.ip_info.city].filter(Boolean).join(" / ");
+    h += '<div class="ip-line">'
+      + '<span class="ip-addr">'+esc(ip)+'</span>'
+      + '<button class="ip-copy" id="copyIp" title="复制IP">\u{1F4CB}</button>'
+      + '<a class="ip-check" href="https://www.todetect.cn/ip/'+encodeURIComponent(ip)+'" target="_blank" rel="noopener">IP\u8d28\u91cf\u68c0\u6d4b</a>'
+      + '</div>';
+    if(loc){
+      h += '<div class="ip-loc"><span class="flag">'+flagEmoji(d.ip_info.country_code)+'</span>'+esc(loc)+'</div>';
+    }
+    var meta = [];
+    if(d.ip_info.lat||d.ip_info.lon) meta.push('\u7ecf\u5ea6/\u7eac\u5ea6: <b>'+esc(d.ip_info.lon)+'/'+esc(d.ip_info.lat)+'</b>');
+    meta.push('\u4ee3\u7406: <b>'+esc(d.proxy.label)+'</b>');
+    h += '<div class="ip-meta">'+meta.join("")+'</div>';
+  } else {
+    h += '<div class="err">\u672a\u80fd\u68c0\u6d4b\u5230\u51fa\u53e3 IP\uff08\u4ee3\u7406\u53ef\u80fd\u4e0d\u53ef\u7528\uff09</div>'
+       + '<div class="ip-meta">\u4ee3\u7406: <b>'+esc(d.proxy.label)+'</b></div>';
+  }
+  h += '<div class="ip-detect">\u6307\u7eb9\u68c0\u6d4b\uff1a';
+  for(var i=0;i<DETECT_SITES.length;i++){
+    h += '<a href="'+DETECT_SITES[i].url+'" target="_blank" rel="noopener">'+esc(DETECT_SITES[i].name)+'</a>';
+    if(i<DETECT_SITES.length-1) h += '<span class="dt-sep">\u00b7</span>';
+  }
+  h += '</div>';
+  document.getElementById("ipCard").innerHTML = h;
+  var cb = document.getElementById("copyIp");
+  if(cb){cb.onclick = function(){
+    var ip = d.ip_info.ip;
+    if(navigator.clipboard){navigator.clipboard.writeText(ip).then(function(){cb.textContent="\u2713";setTimeout(function(){cb.textContent="\u{1F4CB}"},1200)})}
+    else{var t=document.createElement("textarea");t.value=ip;document.body.appendChild(t);t.select();try{document.execCommand("copy");cb.textContent="\u2713";setTimeout(function(){cb.textContent="\u{1F4CB}"},1200)}catch(e){}document.body.removeChild(t)}
+  }}
+}
+
+function renderInfo(d){
+  // 头像 + 名称头部（精致卡片头）
+  var avInner = d.avatar_img
+    ? '<img src="'+esc(d.avatar_img)+'" onerror="this.parentNode.innerHTML=\'\u{1F464}\'">'
+    : esc(d.avatar || "\u{1F464}");
+  var head = '<div class="info-avatar">'
+    + '<div class="av">'+avInner+'</div>'
+    + '<div class="av-txt">'
+    +   '<div class="av-name">'+esc(d.name)+'</div>'
+    +   '<div class="av-sub"><span class="av-seq">#'+(d.seq!=null?d.seq:"?")+'</span>'+esc(d.group)+'</div>'
+    + '</div></div>';
+
+  // 信息行（k/v 形式）
+  var rows = [
+    ["\u5e8f\u53f7", (d.seq!=null?("#"+d.seq):"\u2014")],
+    ["\u5206\u7ec4", esc(d.group)],
+    ["\u5185\u6838\u7248\u672c", esc(d.kernel)],
+    ["\u64cd\u4f5c\u7cfb\u7edf", esc(d.os)]
+  ];
+  if(d.launch_time) rows.push(["\u542f\u52a8\u65f6\u95f4", esc(d.launch_time)]);
+  if(d.remark) rows.push(["\u5907\u6ce8", esc(d.remark)]);
+  var h = head;
+  for(var i=0;i<rows.length;i++){
+    h += '<div class="info-row"><span class="k">'+rows[i][0]+'</span><span class="v">'+rows[i][1]+'</span></div>';
+  }
+  if(d.ua){
+    h += '<div class="info-row"><span class="k">User Agent</span><span class="v ua">'+esc(d.ua)+'</span></div>';
+  }
+  document.getElementById("infoBody").innerHTML = h;
+  document.getElementById("infoCard").style.display = "block";
+}
+
+function dtFb(img){
+  var d = document.createElement("div");
+  d.className = "dt-fb";
+  d.textContent = img.getAttribute("data-fb") || "?";
+  img.parentNode.replaceChild(d, img);
+}
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+﻿.python-version
+.idea
+.venv
+.vscode
+uv.lock
+.env
+__pycache__
+.cursor
+.ruff_cache
+
+secrets/*
+
+# 娴忚鍣ㄦˉ(涓撶敤鍐呮牳銆佹祻瑙堝櫒閰嶇疆銆佹棩蹇椻€斺€斿潎鍚晱鎰熶細璇濇暟鎹?绂佹鎻愪氦)
+browsers/
+browser_profile/
+.bridge-logs/
+
+# 鎸囩汗娴忚鍣ㄧ郴缁?璐﹀彿 userdata/鎸囩汗/浠ｇ悊/cookie 鍧囦负鏁忔劅鏁版嵁)
+fingerprint/storage/
+fingerprint/browser/
+
+# 鏈湴寮€鍙戣剼鏈骇鐗?.dev-logs/
+dev.ps1
+.trae/rules/git-commit-message.md
+AGENTS.md
+custom_models.yaml
+tests/
+
+# 主界面 web app 内核 profile
+app_profile/
+
+# keep empty secrets dir in repo
+!secrets/.gitkeep
+

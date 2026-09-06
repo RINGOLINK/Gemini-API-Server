@@ -1,0 +1,41 @@
+[project]
+name = "gemini-api-server"
+version = "1.2.0"
+license = { text = "AGPL-3.0-only" }
+description = "OpenAI-compatible Gemini web reverse proxy with fingerprint browser pool, health routing, context compression and tool-call protocol"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.12",
+    "gemini-webapi>=2.1.1",
+    "uvicorn[standard]>=0.34.1",
+    "httpx>=0.27.0",
+    "h2>=4.1.0",
+    "curl-cffi>=0.16.2",
+    "pydantic>=2.12.0",
+    "python-multipart>=0.0.32",
+    "aiofiles>=25.1.0",
+    "loguru>=0.7.3",
+    "PySocks>=1.7.1",
+    "socksio>=1.0.0",
+    "websockets>=17.1",
+    "Pillow>=10.3.0",
+    "pystray>=0.19.5",
+    "requests>=2.31.0",
+]
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+priority = "primary"
+
+[tool.ruff]
+line-length = 150
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501", "W191"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "tab"

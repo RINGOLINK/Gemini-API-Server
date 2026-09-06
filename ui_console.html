@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gemini 控制台</title>
+<style>
+:root{--bg:#0f1117;--card:#171a23;--card2:#1e2230;--line:#2a2f3d;--text:#e6e9f0;--dim:#8b93a7;--green:#2ecc71;--orange:#f39c12;--red:#e74c3c;--accent:#4f8cff}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:"Segoe UI","Microsoft YaHei",sans-serif;font-size:14px;padding:16px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+header h1{font-size:18px;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--dim);display:inline-block}
+.dot.green{background:var(--green)}.dot.orange{background:var(--orange)}.dot.red{background:var(--red)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+.card .k{font-size:12px;color:var(--dim);margin-bottom:4px}
+.card .v{font-size:15px;font-weight:500;word-break:break-all}
+.card .v.good{color:var(--green)}.card .v.warn{color:var(--orange)}.card .v.bad{color:var(--red)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+.panel h2{font-size:14px;font-weight:600;margin-bottom:10px;color:var(--accent)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+button{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+input,select{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:13px}
+input[type=checkbox]{accent-color:var(--accent)}
+label{font-size:13px}
+.mono{font-family:Consolas,monospace;font-size:12px;color:var(--dim)}
+#logs{background:#0a0c12;border:1px solid var(--line);border-radius:8px;height:240px;overflow-y:auto;padding:8px;font-family:Consolas,monospace;font-size:12px;line-height:1.5}
+#logs div{white-space:pre-wrap}
+.log-time{color:var(--dim)}
+.log-info{color:#9aa4b8}
+.log-warn{color:var(--orange)}
+.log-err{color:var(--red)}
+#proxyStatus{color:var(--dim);font-size:12px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+button:disabled{opacity:.55;cursor:wait}
+button.busy{background:var(--orange);border-color:var(--orange)}
+button.fail{background:var(--red);border-color:var(--red);color:#fff}
+.tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:8px}
+.tab{background:transparent;border:1px solid var(--line);color:var(--dim);padding:6px 18px;border-radius:8px;cursor:pointer;font-size:13px}
+.tab:hover{color:var(--text);border-color:var(--accent)}
+.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.tabpage{display:none}
+.tabpage.active{display:block}
+iframe.fp-frame{width:100%;height:calc(100vh - 140px);border:1px solid var(--line);border-radius:10px;background:#fff}
+iframe.srv-frame{width:100%;height:calc(100vh - 140px);border:1px solid var(--line);border-radius:10px;background:#fff}
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="headDot"></span>
+  <h1>Gemini 浏览器桥 · 桌面端</h1>
+  <span id="headState" style="color:var(--dim)">启动中…</span>
+</header>
+
+<div class="tabs">
+  <button class="tab active" data-tab="bridge" onclick="switchTab('bridge')">桥</button>
+  <button class="tab" data-tab="server" onclick="switchTab('server')">服务端</button>
+  <button class="tab" data-tab="fp" onclick="switchTab('fp')">指纹浏览器管理</button>
+</div>
+
+<div id="tab-bridge" class="tabpage active">
+<div class="grid" id="cards">
+  <div class="card"><div class="k">运行模式</div><div class="v" id="c-mode">-</div></div>
+  <div class="card"><div class="k">浏览器内核</div><div class="v" id="c-kernel">-</div></div>
+  <div class="card"><div class="k">登录状态</div><div class="v" id="c-login">-</div></div>
+  <div class="card"><div class="k">服务端连接</div><div class="v" id="c-server">-</div></div>
+  <div class="card"><div class="k">今日额度</div><div class="v" id="c-quota">-</div></div>
+  <div class="card"><div class="k">当前账号</div><div class="v" id="c-account">-</div></div>
+  <div class="card"><div class="k">1PSID</div><div class="v" id="c-psid">-</div></div>
+  <div class="card"><div class="k">1PSIDTS</div><div class="v" id="c-psidts">-</div></div>
+  <div class="card"><div class="k">最近推送</div><div class="v" id="c-push">-</div></div>
+  <div class="card"><div class="k">最近保活</div><div class="v" id="c-keepalive">-</div></div>
+  <div class="card"><div class="k">出口代理</div><div class="v" id="c-proxy">-</div></div>
+</div>
+
+<div class="actions">
+  <button class="primary" onclick="action('push_cookie', this)">立即推送 Cookie</button>
+  <button onclick="action('keepalive', this)">立即保活</button>
+  <button onclick="action('open_login_tab', this)">打开登录标签</button>
+  <button onclick="window.open('http://127.0.0.1:4444/admin','_blank')">服务端面板(新标签)</button>
+</div>
+
+<div class="panel">
+  <h2>出口代理配置(仅服务端 API)</h2>
+  <div class="row">
+    <label><input type="checkbox" id="proxyEnabled"> 启用</label>
+    <select id="proxyScheme"><option>socks5h</option><option>socks5</option><option>http</option></select>
+    <input id="proxyHost" placeholder="主机" size="16">
+    <input id="proxyPort" placeholder="端口" size="6">
+    <input id="proxyUser" placeholder="用户名" size="14">
+    <input id="proxyPass" type="password" placeholder="密码" size="14">
+    <button onclick="saveProxy(this)">保存并同步服务端</button>
+    <span id="proxyStatus"></span>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>功能开关(实时生效)</h2>
+  <div class="row">
+    <label><input type="checkbox" id="toggleThinking"> 思考模式(推理过程)</label>
+    <label style="margin-left:16px"><input type="checkbox" id="toggleParallel"> 并行工具调用</label>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Agent 接入信息</h2>
+  <div class="row">
+    <span>Base URL:</span><span class="mono" id="infoBase">-</span>
+    <button onclick="copyText(infoBase.textContent)">复制</button>
+    <span style="margin-left:12px">API Key:</span><span class="mono" id="infoKey">-</span>
+    <button onclick="copyText(infoKey.textContent)">复制</button>
+  </div>
+  <div class="row"><span>模型:</span><span class="mono">gemini-pro / gemini-flash / gemini-flash-lite</span></div>
+</div>
+
+<div class="panel">
+  <h2>日志</h2>
+  <div id="logs"></div>
+</div>
+</div><!-- /tab-bridge -->
+
+<div id="tab-server" class="tabpage">
+  <div class="panel">
+    <h2>服务端信息</h2>
+    <div class="row"><span>Base URL:</span><span class="mono" id="infoBase2">-</span><button onclick="copyText(infoBase2.textContent)">复制</button></div>
+    <div class="row"><span>API Key:</span><span class="mono" id="infoKey2">-</span><button onclick="copyText(infoKey2.textContent)">复制</button></div>
+    <div class="row"><span>模型:</span><span class="mono">gemini-pro / gemini-flash / gemini-flash-lite</span></div>
+    <div class="row" style="margin-top:8px"><span style="color:var(--dim)">服务端管理面板(登录、cookie、代理、开关):</span></div>
+  </div>
+  <iframe class="srv-frame" src="http://127.0.0.1:4444/admin"></iframe>
+</div>
+
+<div id="tab-fp" class="tabpage">
+  <div class="panel" style="padding:8px 14px">
+    <span style="color:var(--dim);font-size:12px">多账号指纹浏览器管理 · 每账号独立窗口/指纹/代理 · 点击账号卡片可唤起窗口并登录独立 Google 账号</span>
+  </div>
+  <iframe class="fp-frame" src="http://127.0.0.1:4446/browser"></iframe>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let lastLogCount = 0;
+
+async function refreshStatus(){
+  try{
+    const r = await fetch('/api/status'); const s = await r.json();
+    $('c-mode').textContent = s.mode ?? '-';
+    $('c-kernel').textContent = s.kernel ?? '-';
+    $('c-login').textContent = s.login ?? '-';
+    $('c-server').textContent = s.server ?? '-';
+    $('c-quota').textContent = s.quota ?? '-';
+    $('c-account').textContent = (s.current_account || '(单账号模式)') + (s.client_mode === 'direct' && s.current_account ? ' (直连降级)' : '');
+    $('c-psid').textContent = s.psid ?? '-';
+    $('c-psidts').textContent = s.psidts ?? '-';
+    $('c-push').textContent = s.push_time ?? '-';
+    $('c-keepalive').textContent = s.keepalive_time ?? '-';
+    $('c-proxy').textContent = (s.proxy || '-') + (s.client_mode === 'direct' ? ' (直连降级中)' : s.client_mode === 'proxy' ? ' (代理)' : '');
+    // 颜色
+    $('c-login').className = 'v ' + (s.login_color === 'red' ? 'bad' : s.login_color === 'orange' ? 'warn' : s.login_color === 'green' ? 'good' : '');
+    $('c-server').className = 'v ' + (s.server && s.server.startsWith('已连接') ? 'good' : 'warn');
+    $('c-kernel').className = 'v ' + (s.kernel && s.kernel.indexOf('已关闭') >= 0 ? 'bad' : '');
+    $('headDot').className = 'dot ' + (s.login_color === 'green' ? 'green' : s.login_color === 'red' ? 'red' : 'orange');
+    $('headState').textContent = s.mode || '';
+    // 开关状态
+    $('toggleThinking').checked = s.thinking !== false;
+    $('toggleParallel').checked = s.parallel !== false;
+    // 代理表单
+    if(s.proxy_parsed && !$('proxyHost').value){ $('proxyEnabled').checked = true; $('proxyScheme').value = s.proxy_parsed.scheme; $('proxyHost').value = s.proxy_parsed.host; $('proxyPort').value = s.proxy_parsed.port; $('proxyUser').value = s.proxy_parsed.username||''; $('proxyPass').value = s.proxy_parsed.password||''; }
+    // 接入信息
+    $('infoBase').textContent = s.base_url || '-';
+    $('infoKey').textContent = s.api_key || '-';
+  }catch(e){}
+}
+async function refreshLogs(){
+  try{
+    const r = await fetch('/api/logs'); const data = await r.json();
+    const logs = data.logs || [];
+    if(logs.length > lastLogCount){
+      const box = $('logs');
+      for(let i = lastLogCount; i < logs.length; i++){
+        const d = document.createElement('div');
+        const t = logs[i].time || '';
+        const lv = logs[i].level || 'INFO';
+        const cls = lv === 'ERROR' ? 'log-err' : lv === 'WARNING' ? 'log-warn' : 'log-info';
+        const cnt = (logs[i].count || 1) > 1 ? ' <span style="color:var(--dim)">×' + logs[i].count + '</span>' : '';
+        const msg = String(logs[i].msg || '').replace(/</g,'&lt;');
+        d.innerHTML = '<span class="log-time">'+t+'</span> <span class="'+cls+'">'+msg+'</span>'+cnt;
+        box.appendChild(d);
+      }
+      lastLogCount = logs.length;
+      box.scrollTop = box.scrollHeight;
+    }
+  }catch(e){}
+}
+function markBusy(btn, text){
+  if(!btn) return;
+  btn.dataset.orig = btn.dataset.orig || btn.textContent;
+  btn.disabled = true; btn.classList.add('busy'); btn.textContent = text || '处理中…';
+}
+function markDone(btn){
+  if(!btn) return;
+  btn.disabled = false; btn.classList.remove('busy','fail'); btn.textContent = btn.dataset.orig || btn.textContent;
+}
+function markFail(btn){
+  if(!btn) return;
+  btn.disabled = false; btn.classList.remove('busy'); btn.classList.add('fail');
+  btn.textContent = '失败,点此重试';
+}
+async function action(a, btn){
+  markBusy(btn);
+  try{
+    const r = await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:a})});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    markDone(btn);
+  }catch(e){
+    markFail(btn);
+    setTimeout(()=>markDone(btn), 2500);
+  }
+}
+async function saveProxy(btn){
+  markBusy(btn, '同步中…');
+  const body = {enabled:$('proxyEnabled').checked, scheme:$('proxyScheme').value, host:$('proxyHost').value.trim(), port:$('proxyPort').value.trim(), user:$('proxyUser').value.trim(), pass:$('proxyPass').value};
+  try{
+    const r = await fetch('/api/proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j = await r.json(); $('proxyStatus').textContent = j.message || '';
+    if(!j.ok) throw new Error('sync failed');
+    markDone(btn);
+  }catch(e){
+    markFail(btn);
+    setTimeout(()=>markDone(btn), 2500);
+  }
+}
+function toggleFeature(feature, el){
+  fetch('/api/feature',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({feature:feature,enabled:el.checked})})
+    .catch(()=>{ el.checked = !el.checked; });
+}
+$('toggleThinking').addEventListener('change', ()=> toggleFeature('thinking', $('toggleThinking')));
+$('toggleParallel').addEventListener('change', ()=> toggleFeature('parallelTools', $('toggleParallel')));
+function copyText(t){ navigator.clipboard.writeText(t).then(()=>{ const s=$('proxyStatus'); s.textContent='已复制'; setTimeout(()=>s.textContent='',1200); }); }
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('active', p.id==='tab-'+name));
+  if(name==='fp'){ const f=$('tab-fp').querySelector('iframe'); if(f && !f.src) f.src='http://127.0.0.1:4446/browser'; }
+  if(name==='server'){ $('infoBase2').textContent = $('infoBase').textContent; $('infoKey2').textContent = $('infoKey').textContent; }
+}
+setInterval(refreshStatus, 2000);
+setInterval(refreshLogs, 2000);
+refreshStatus(); refreshLogs();
+</script>
+</body>
+</html>

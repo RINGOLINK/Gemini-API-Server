@@ -1,0 +1,14 @@
+﻿services:
+  gemini-api:
+    build: .
+    container_name: gemini-api-server
+    ports:
+      - "4444:4444"
+      - "4445:4445"
+      - "4446:4446"
+    volumes:
+      - ./secrets:/app/secrets
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    restart: unless-stopped

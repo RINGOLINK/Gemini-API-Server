@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenMedia 启动器</title>
+<style>
+:root{--bg:#0e0f12;--surface:#16181d;--surface2:#1c1e25;--brand:#8b5cf6;--text:#e0e1e6;--muted:#71717a;--border:rgba(255,255,255,.06);--green:#22c55e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui;padding:24px;max-width:600px;margin:0 auto}
+h1{font-size:1.75rem;font-weight:700;letter-spacing:-.01em;margin-bottom:20px}
+.status-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px}
+.status-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;transition:all .15s}
+.status-card .label{font-size:.938rem;color:var(--muted);margin-bottom:6px}
+.status-card .value{font-size:.938rem;font-weight:500}
+.status-card .value.on{color:var(--green)}
+.actions{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px}
+.btn{padding:12px 16px;border-radius:10px;font-size:.85rem;font-weight:500;cursor:pointer;border:none;transition:all .15s ease;font-family:inherit;text-align:center}
+.btn-primary{background:#6d28d9;color:#fff;grid-column:1/-1}
+.btn-primary:hover{background:#7c3aed}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-outline:hover{border-color:rgba(255,255,255,.12);background:var(--surface2)}
+.btn-util{background:transparent;color:var(--muted);border:1px solid transparent;font-size:.938rem}
+.btn-util:hover{color:var(--text)}
+.log-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;max-height:140px;overflow-y:auto}
+.log-box .entry{font-size:.938rem;color:var(--muted);padding:2px 0;font-family:"Cascadia Code","JetBrains Mono",monospace}
+</style>
+</head>
+<body>
+<h1>OpenMedia 启动器</h1>
+<div class="status-grid" id="statusGrid"></div>
+<div class="actions">
+  <button class="btn btn-primary" onclick="api('start/all')">▶ 启动全部</button>
+  <button class="btn btn-outline" onclick="api('stop/all')">■ 停止全部</button>
+  <button class="btn btn-outline" onclick="window.open('http://127.0.0.1:5555','_blank')">🌐 OpenMedia 面板</button>
+  <button class="btn btn-outline" onclick="window.open('http://127.0.0.1:19119','_blank')">🧠 Hermes WebUI</button>
+  <button class="btn btn-util" onclick="api('clear/cache-ui')">🧹 清 UI 缓存</button>
+  <button class="btn btn-util" onclick="api('clear/cache-py')">🐍 清 Python 缓存</button>
+</div>
+<div class="log-box" id="log"></div>
+<script>
+const BASE="";
+function log(msg){const e=document.getElementById("log");e.innerHTML+=`<div class="entry">${new Date().toLocaleTimeString()}  ${msg}</div>`;e.scrollTop=e.scrollHeight}
+async function api(path){log(`→ ${path}`);try{const r=await fetch(`/api/${path}`,{method:"POST"});const d=await r.json();log(`✓ ${JSON.stringify(d)}`);refresh()}catch(e){log(`✗ ${e.message}`)}}
+async function refresh(){try{const s=await fetch("/api/status").then(r=>r.json());const g=document.getElementById("statusGrid");g.innerHTML=Object.entries(s).map(([k,v])=>`<div class="status-card"><div class="label">${k.replace("_"," ")}</div><div class="value ${v==='running'?'on':''}">${v==='running'?'🟢 运行中':'⚫ 未启动'}</div></div>`).join("")}catch(e){}}
+refresh();setInterval(refresh,3000);
+</script>
+</body>
+</html>

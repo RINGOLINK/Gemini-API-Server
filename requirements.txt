@@ -1,0 +1,23 @@
+# Core runtime (pinned to versions verified with v1.2)
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+gemini-webapi==2.1.1
+httpx==0.28.1
+curl-cffi==0.16.2
+pydantic==2.12.5
+python-multipart==0.0.32
+aiofiles==25.1.0
+loguru==0.7.3
+websockets==17.1
+h2>=4.1.0
+
+# SOCKS5 egress proxy support
+PySocks==1.7.1
+socksio==1.0.0
+
+# Desktop launcher (tray icon) - Windows; safe to skip on headless Linux
+pystray==0.19.5
+Pillow==12.3.0
+
+# Misc
+requests==2.34.2
