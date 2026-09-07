@@ -610,7 +610,7 @@ input,select,textarea{color-scheme:dark;background-color:var(--bg-2)!important;c
 <!-- 媒体查看器 -->
 <div class="modal-overlay" id="mdViewer">
   <div class="modal" style="max-width:900px;width:90%">
-    <div class="modal-head"><h2 id="mdViewerTitle" style="font-size:1rem">查看媒体</h2><button class="btn" style="margin-left:auto;padding:4px 10px" onclick="closeMdViewer()">✕</button></div>
+    <div class="modal-head"><h2 id="mdViewerTitle" style="font-size:1rem">查看媒体</h2><a id="mdViewerDl" download style="margin-left:14px;padding:4px 12px;border-radius:8px;background:var(--surface2);border:1px solid var(--hairline);text-decoration:none;color:var(--text);font-size:.8rem">⬇ 下载</a><button class="btn" style="margin-left:auto;padding:4px 10px" onclick="closeMdViewer()">✕</button></div>
     <div class="modal-body" id="mdViewerBody" style="display:flex;justify-content:center;max-height:75vh;overflow:auto"></div>
   </div>
 </div>
@@ -1023,13 +1023,18 @@ async function refreshBalance(btn){
       const changed=sig!==lastSig;
       if(changed){ lastSig=sig; loadAccounts(); }
       const finished=!acc.refreshing;   // 以任务翻转为准;空账号池 summary 为空也能正常结束
-      if(finished||Date.now()-t0>180000){
+      if(finished||Date.now()-t0>90000){   // 看门狗 90s: 正常 20s 即完成,超时视为异常,绝不永久卡"刷新中…"
         clearInterval(timer);
         btn.classList.remove('busy'); btn.textContent=old; $('#balRefreshHint').textContent='';
         if(acc.refreshing){ toast('刷新超时(后台仍在继续,稍后自动更新)'); }
         else { toast('刷新完成: '+(acc.refresh_summary||'无已登录账号')); loadAccounts(); }
       }
-    }catch(e){}
+    }catch(e){
+      // 轮询出错也要复位,否则按钮永久卡"刷新中…"
+      clearInterval(timer);
+      btn.classList.remove('busy'); btn.textContent=old; $('#balRefreshHint').textContent='';
+      toast('刷新轮询异常');
+    }
   },2000);
 }
 async function switchSelectedCookie(btn){
@@ -1446,7 +1451,10 @@ function mdView(url, kind){
   else if(kind === 'video') body = '<video src="'+url+'" controls autoplay style="max-width:100%;max-height:72vh;border-radius:12px"></video>';
   else if(kind === 'audio') body = '<audio src="'+url+'" controls autoplay style="width:100%"></audio>';
   else body = '<div style="font-size:1rem">'+mdEsc(url)+'</div>';
-  $('mdViewerBody').innerHTML = body + '<div style="text-align:center;margin-top:8px"><a href="'+url+'" download class="btn">⬇ 下载</a></div>';
+  var dl = $('mdViewerDl');
+  dl.href = url;
+  dl.style.display = url ? '' : 'none';
+  $('mdViewerBody').innerHTML = '<div style="display:flex;justify-content:center;align-items:center;width:100%">'+body+'</div>';
   $('mdViewer').classList.add('show');
 }
 function closeMdViewer(){ $('mdViewer').classList.remove('show'); $('mdViewerBody').innerHTML=''; }

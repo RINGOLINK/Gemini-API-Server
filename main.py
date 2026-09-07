@@ -1723,12 +1723,13 @@ async def _refresh_one_account_balance(st: dict):
 	(原实现只读 init 时的内存快照 —— 点了等于没刷,这就是"积分一直不变"的根因)"""
 	pid = st["pid"]
 	try:
+		# 收紧超时: 此前 init 120s + fetch 45s,若账号凭据过期会让 running 挂 165s+(看板"一直刷新中"的根因)
 		if st.get("client") is None:
-			await asyncio.wait_for(_init_pool_account(st, light=True), timeout=120)
+			await asyncio.wait_for(_init_pool_account(st, light=True), timeout=45)
 		client = st.get("client")
 		if client is None:
 			raise RuntimeError("client 初始化失败")
-		await asyncio.wait_for(client._fetch_quota(), timeout=45)
+		await asyncio.wait_for(client._fetch_quota(), timeout=30)
 		q = getattr(client, "quotas", None) or {}
 		usage = q.get("usage_info", {}) or {}
 		daily = usage.get("daily") or usage.get("current_5h") or usage
