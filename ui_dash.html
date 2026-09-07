@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Gemini-API 主界面</title>
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Gemini-API 主界面</title>
 <style>
 /* ── 设计令牌(Linear 式深色工具美学 + 品牌紫)── */
 :root{
@@ -1010,7 +1010,7 @@ async function refreshBalance(btn){
   let started=false;
   try{
     const j=await fetch('/api/accounts/refresh',{method:'POST'}).then(r=>r.json());
-    started=!!(j.started||j.refreshing);
+    started=!!(j.ok||j.started||j.refreshing);   // ok:true 也视为已启动(刷新立即返回,后台继续)
   }catch(e){}
   if(!started){ toast('刷新启动失败'); btn.classList.remove('busy'); btn.textContent=old; $('#balRefreshHint').textContent=''; return; }
   toast('已开始刷新余额(并发抓取中)');

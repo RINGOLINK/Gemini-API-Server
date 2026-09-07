@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import base64
 from collections import deque
 import hashlib
@@ -1779,15 +1779,15 @@ async def _refresh_accounts_balance_async():
 
 
 async def refresh_accounts_balance():
-	"""触发后台并发刷新并等待完成(最长 150s,与 bridge proxy_admin 超时对齐)。
-	进度经 _BALANCE_REFRESH / pool_snapshot 暴露,前端可轮询逐账号更新。"""
+	"""触发后台并发刷新并【立即返回】—— 不再阻塞等待 150s。
+	此前端点会 sleep 直到刷新结束再返回,导致:
+	  1) 桥接请求被拖 150s;
+	  2) 返回时 refreshing 已为 False,前端误判「刷新启动失败」(真实问题)。
+	现在只投递后台任务,进度由前端轮询 pool_snapshot.refreshing 逐账号更新。"""
 	if not _BALANCE_REFRESH["running"]:
 		_BALANCE_REFRESH["running"] = True  # 先占位,防止重复触发
 		asyncio.create_task(_refresh_accounts_balance_async())
-	deadline = time.time() + 150
-	while _BALANCE_REFRESH["running"] and time.time() < deadline:
-		await asyncio.sleep(0.5)
-	return {"ok": True, "refreshing": _BALANCE_REFRESH["running"],
+	return {"ok": True, "started": True, "refreshing": _BALANCE_REFRESH["running"],
 			"accounts": [{"pid": pid, "quota": _pool.get(pid, {}).get("quota")} for pid in _pool]}
 
 
@@ -2035,8 +2035,27 @@ async def _headless_refresh_cookie(pid: str, proxy):
 	from fingerprint.account_cookies import save_gemini_cookies
 	browser = None
 	try:
+		# TargetClosedError 根因: 窗口在线时其 userdata 目录被锁,headless 用同一目录
+		# launch_persistent_context 会拿到已关闭的浏览器/上下文 → 报 TargetClosedError。
+		# 在线窗口自己会完成 Cookie 续期,headless 不与该窗口抢 profile 锁。
+		try:
+			from fingerprint.window import is_running as _is_window_running
+			if _is_window_running(pid):
+				trace_logger.info("[自愈] 账号 %s 窗口在线,跳过 headless 刷新(避免与在线窗口争抢 profile 锁)", pid)
+				return None
+		except Exception:
+			pass
 		browser = FingerprintBrowser(pid, proxy={"mode": proxy} if proxy else None)
-		await browser.launch(headless=True)
+		try:
+			await browser.launch(headless=True)
+		except Exception as e:
+			# TargetClosedError: 浏览器/上下文关闭(profile 被占/窗口崩溃);记录后按"无可刷新"处理
+			_is_target = "TargetClosedError" in type(e).__name__ or "has been closed" in str(e)
+			if _is_target:
+				trace_logger.warning("[自愈] 账号 %s headless 启动失败(浏览器/上下文已关闭,可能是窗口在线或异常退出): %s", pid, str(e)[:100])
+			else:
+				trace_logger.warning("[自愈] 账号 %s headless 启动失败: %s", pid, str(e)[:120])
+			return None
 		pg = await browser.new_page()
 		try:
 			await pg.goto("https://gemini.google.com/app", wait_until="domcontentloaded", timeout=45000)
