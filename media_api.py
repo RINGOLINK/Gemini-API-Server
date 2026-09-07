@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 media_api.py — 生图/生视频/生音乐三媒体生成服务
 
@@ -58,13 +58,14 @@ def _new_job(kind: str, prompt: str) -> str:
     return job_id
 
 
-def _signed_media_url(media_id: str, request=None, ttl: int = 86400) -> str:
+def _signed_media_url(media_id: str, request=None, ttl: int = 86400, base: str = "") -> str:
     from main import PUBLIC_BASE_URL, SIGNATURE_SECRET
     exp = int(time.time()) + ttl
     sig = _hmac.new(str(SIGNATURE_SECRET).encode(), f"{media_id}|{exp}".encode(),
                     hashlib.sha256).hexdigest()
-    base = str(PUBLIC_BASE_URL).rstrip("/") if PUBLIC_BASE_URL else (
-        str(request.base_url).rstrip("/") if request is not None else "")
+    if not base:
+        base = str(PUBLIC_BASE_URL).rstrip("/") if PUBLIC_BASE_URL else (
+            str(request.base_url).rstrip("/") if request is not None else "")
     return f"{base}/v1/media/file/{media_id}?exp={exp}&sig={sig}"
 
 
@@ -345,3 +346,17 @@ async def media_image(body: dict, request: Request):
 async def media_job(job_id: str, request: Request):
     """异步任务状态轮询。"""
     return _with_urls(job_snapshot(job_id), request)
+
+
+def jobs_list(limit: int = 50, base: str = "") -> list:
+    """最近任务清单(看板用),新→旧。"""
+    out = []
+    for jid, j in sorted(_jobs.items(), key=lambda kv: kv[1]["created"], reverse=True)[:limit]:
+        e = dict(j)
+        e["job_id"] = jid
+        e["files"] = [{"media_id": f["media_id"], "kind": f["kind"], "filename": f["filename"],
+                       "bytes": f["bytes"],
+                       "url": _signed_media_url(f["media_id"], ttl=86400, base=base)}
+                      for f in j.get("files", [])]
+        out.append(e)
+    return out

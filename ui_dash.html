@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Gemini-API 主界面</title>
+﻿<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Gemini-API 主界面</title>
 <style>
 /* ── 设计令牌(Linear 式深色工具美学 + 品牌紫)── */
 :root{
@@ -303,6 +303,7 @@ input,select,textarea{color-scheme:dark;background-color:var(--bg-2)!important;c
       <button class="pill on" data-p="dash" onclick="switchPage('dash')">状态看板</button>
       <button class="pill" data-p="settings" onclick="switchPage('settings')">功能设置</button>
       <button class="pill" data-p="prompt" onclick="switchPage('prompt')">系统提示词</button>
+      <button class="pill" data-p="media" onclick="switchPage('media')">媒体工坊</button>
       <button class="pill" data-p="fp" onclick="switchPage('fp')">账号管理</button>
     </div>
   </div>
@@ -403,6 +404,31 @@ input,select,textarea{color-scheme:dark;background-color:var(--bg-2)!important;c
       </div>
     </div>
 
+
+    <!-- ═══════════ 媒体工坊(生图/生视频/生音乐)═══ -->
+    <div class="page" id="p-media">
+      <div class="two-col col">
+        <div class="panel" style="margin-bottom:14px">
+          <div class="acc-head"><h2>生成新媒体</h2></div>
+          <div class="row" style="gap:10px;margin-bottom:10px">
+            <div style="flex:1"><label>类型</label>
+              <select id="mdKind" style="width:100%">
+                <option value="image">🖼 生图(Imagein)</option>
+                <option value="video">🎬 生视频(Veo,约1~2分钟)</option>
+                <option value="music">🎵 生音乐(Lyria)</option>
+              </select>
+            </div>
+            <div style="flex:3"><label>Prompt</label><input id="mdPrompt" placeholder="描述你要的内容…" onkeydown="if(event.key==='Enter')mdGenerate()"></div>
+            <div style="align-self:flex-end"><button class="btn btn-primary" id="mdGoBtn" onclick="mdGenerate()">生成</button></div>
+          </div>
+          <div id="mdMsg" style="font-size:.8rem;color:var(--muted)"></div>
+        </div>
+        <div class="panel" style="margin-bottom:0">
+          <div class="acc-head"><h2>最近任务</h2><button class="btn" onclick="mdLoad()">刷新</button></div>
+          <div id="mdList" style="display:flex;flex-direction:column;gap:14px"><span class="hint">加载中…</span></div>
+        </div>
+      </div>
+    </div>
     <!-- ═══════════ 指纹浏览器管理 ═══════════ -->
     <div class="page" id="p-fp">
       <div class="row" style="margin-bottom:16px">
@@ -1346,4 +1372,72 @@ setInterval(()=>{ if($('p-dash').classList.contains('active')) refreshDash(); },
 setInterval(()=>{ if($('p-fp').classList.contains('active')) loadFp(); }, 2000);
 setInterval(()=>{ if($('p-settings').classList.contains('active')) loadAccounts(); }, 20000);
 refreshDash(); loadSettings();
+
+// ── 媒体工坊(生图/生视频/生音乐) ──
+let _mdPollTimer = null;
+function mdKindLabel(k){ return k==='image' ? '🖼 生图' : k==='video' ? '🎬 生视频' : k==='music' ? '🎵 生音乐' : k; }
+async function mdGenerate(btn){
+  const kind = $('mdKind').value;
+  const prompt = $('mdPrompt').value.trim();
+  const msg = $('mdMsg');
+  if(!prompt){ msg.textContent='请先输入 prompt'; msg.style.color='var(--red)'; return; }
+  const goBtn = btn || $('mdGoBtn');
+  goBtn.disabled = true;
+  const kindText = mdKindLabel(kind);
+  msg.textContent = kindText + ' 生成中(视频约 1~2 分钟,请勿关闭页面)…';
+  msg.style.color = '';
+  try{
+    const r = await fetch('/api/media/generate', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({kind, prompt, wait: true})});
+    const j = await r.json();
+    if(j.ok && j.status === 'done' && (j.files||[]).length){
+      msg.textContent = '✓ 生成完成(' + (j.elapsed||'?') + 's)';
+      msg.style.color = 'var(--green)';
+      mdPrompt.value = '';
+      mdLoad();
+    }else{
+      msg.textContent = '✗ ' + (j.error || j.detail || '生成失败');
+      msg.style.color = 'var(--red)';
+    }
+  }catch(e){ msg.textContent = '请求异常: ' + e; msg.style.color = 'var(--red)'; }
+  goBtn.disabled = false;
+}
+function mdFileCard(f){
+  const size = f.bytes > 1048576 ? (f.bytes/1048576).toFixed(1)+' MB' : Math.round(f.bytes/1024)+' KB';
+  let media = '';
+  if(f.kind === 'image') media = '<img src="'+f.url+'" style="max-width:100%;max-height:340px;border-radius:10px" loading="lazy">';
+  else if(f.kind === 'video') media = '<video src="'+f.url+'" controls style="max-width:100%;border-radius:10px" preload="metadata"></video>';
+  else if(f.kind === 'audio') media = '<audio src="'+f.url+'" controls style="width:100%"></audio>';
+  else return '';
+  return '<div style="border:1px solid var(--hairline);border-radius:12px;padding:10px;background:var(--surface2)">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+    + '<span style="font-size:.78rem;color:var(--muted)">'+f.filename+' · '+size+'</span>'
+    + '<a href="'+f.url+'" download style="font-size:.78rem;color:var(--brand)">⬇ 下载</a></div>' + media + '</div>';
+}
+async function mdLoad(){
+  const box = $('mdList');
+  try{
+    const r = await fetch('/api/media/jobs');
+    const j = await r.json();
+    const jobs = (j.jobs||[]).filter(x => (x.files||[]).length || x.status==='failed');
+    if(!jobs.length){ box.innerHTML = '<span class="hint">暂无任务 — 在上方输入 prompt 生成第一张图/段视频吧</span>'; return; }
+    box.innerHTML = jobs.map(job=>{
+      const head = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">'
+        + '<span style="font-weight:600;font-size:.85rem">'+mdKindLabel(job.kind)+'</span>'
+        + '<span style="font-size:.75rem;color:'+(job.status==='done'?'var(--green)':job.status==='failed'?'var(--red)':'#e6a23c')+'">'
+        + (job.status==='done' ? '✓ 完成'+(job.elapsed?' '+job.elapsed+'s':'') : job.status==='failed' ? '✗ 失败' : '⏳ '+job.status)
+        + '</span><span style="font-size:.72rem;color:var(--muted);flex:1">'+(job.prompt||'')+'</span>'
+        + '<span style="font-size:.72rem;color:var(--muted)">'+new Date(job.created*1000).toLocaleString('zh-CN',{hour:'2-digit',minute:'2-digit'})+'</span></div>';
+      if(job.status === 'failed') return '<div>'+head+'<div style="font-size:.78rem;color:var(--red)">'+(job.error||'')+'</div></div>';
+      const cards = (job.files||[]).filter(f=>f.kind!=='video_thumbnail').map(mdFileCard).join('');
+      return '<div>'+head+'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">'+cards+'</div></div>';
+    }).join('');
+    // 有进行中任务时 5s 轮询刷新
+    const pending = (j.jobs||[]).some(x => x.status==='pending' || x.status==='generating');
+    if(pending){ clearTimeout(_mdPollTimer); _mdPollTimer = setTimeout(mdLoad, 5000); }
+  }catch(e){ box.innerHTML = '<span class="hint">加载失败</span>'; }
+}
+// 切到媒体页时自动加载
+const _origSwitchPage = switchPage;
+switchPage = function(p){ _origSwitchPage(p); if(p === 'media') mdLoad(); };
 </script></body></html>

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 gemini_core.py —— Gemini 项目后台核心(无窗口)
 
@@ -174,6 +174,8 @@ class DashHandler(BaseHTTPRequestHandler):
             self._send(200, json.dumps(proxy_admin("GET", "/admin/api/proxy-health"), ensure_ascii=False))
         elif path == "/api/alerts/config":
             self._send(200, json.dumps(proxy_admin("GET", "/admin/api/alerts/config"), ensure_ascii=False))
+        elif path == "/api/media/jobs":
+            self._send(200, json.dumps(proxy_admin("GET", "/admin/api/media/jobs"), ensure_ascii=False))
         else:
             self._send(404, '{"detail":"Not Found"}')
 
@@ -216,6 +218,10 @@ class DashHandler(BaseHTTPRequestHandler):
             self._send(200, json.dumps(r, ensure_ascii=False))
         elif path == "/api/alerts/test":
             r = proxy_admin("POST", "/admin/api/alerts/test", payload)
+            self._send(200, json.dumps(r, ensure_ascii=False))
+        elif path == "/api/media/generate":
+            # 媒体生成可能耗时 1~3 分钟,延长桥接超时
+            r = proxy_admin("POST", "/admin/api/media/generate", payload, timeout=320)
             self._send(200, json.dumps(r, ensure_ascii=False))
         elif path == "/api/feature":
             feature = payload.get("feature")
@@ -311,12 +317,12 @@ def _ensure_admin_token() -> bool:
     return False
 
 
-def proxy_admin(method: str, path: str, payload=None) -> dict:
+def proxy_admin(method: str, path: str, payload=None, timeout: int = 150) -> dict:
     if not _ensure_admin_token():
         return {"ok": False, "error": "管理面板登录失败"}
     try:
         return cb._http_json(method, f"http://127.0.0.1:{SERVER_PORT}{path}",
-                             payload, {"X-Admin-Token": ADMIN_TOKEN["token"]}, timeout=150)
+                             payload, {"X-Admin-Token": ADMIN_TOKEN["token"]}, timeout=timeout)
     except Exception as e:
         ADMIN_TOKEN["token"] = ""
         return {"ok": False, "error": str(e)[:200]}

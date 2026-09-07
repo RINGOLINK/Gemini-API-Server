@@ -1,4 +1,4 @@
-"""
+﻿"""
 Gemi2Api Server 管理面板后端
 提供状态监控、配置管理、日志查看等功能
 """
@@ -813,3 +813,32 @@ def setup_middleware(app):
 					log_request(scope.get("method", ""), path, status_holder["status"], duration)
 
 	app.add_middleware(_RequestLogMiddleware)
+
+
+# ───────── 媒体生成(生图/生视频/生音乐)看板直调 ─────────
+@router.get("/api/media/jobs")
+async def media_jobs(token: str = Depends(verify_admin_token)):
+    """最近媒体任务清单(看板展示,含签名文件 URL)。"""
+    import media_api as _ma
+    return {"ok": True, "jobs": _ma.jobs_list(limit=50)}
+
+
+@router.post("/api/media/generate")
+async def media_generate(payload: dict, request: Request, token: str = Depends(verify_admin_token)):
+    """看板发起媒体生成。payload: {kind: image|video|music, prompt, wait=true}"""
+    import media_api as _ma
+    kind = str(payload.get("kind") or "").strip()
+    prompt = str(payload.get("prompt") or "").strip()
+    wait = bool(payload.get("wait", True))
+    if not prompt:
+        raise HTTPException(400, "prompt 不能为空")
+    if kind not in ("image", "video", "music"):
+        raise HTTPException(400, f"未知媒体类型: {kind}")
+    # 看板直调: 媒体文件 URL 指向 4444 主服务(签名即鉴权)
+    snap = await _ma.generate_media(kind, prompt, wait=wait)
+    base = "http://127.0.0.1:4444"
+    snap["files"] = [{"media_id": f["media_id"], "kind": f["kind"], "filename": f["filename"],
+                      "bytes": f["bytes"],
+                      "url": _ma._signed_media_url(f["media_id"], ttl=86400, base=base)}
+                     for f in snap.get("files", [])]
+    return {"ok": True, **snap}
