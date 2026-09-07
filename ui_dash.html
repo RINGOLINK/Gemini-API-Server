@@ -418,7 +418,7 @@ input,select,textarea{color-scheme:dark;background-color:var(--bg-2)!important;c
                 <option value="music">🎵 生音乐(Lyria)</option>
               </select>
             </div>
-            <div style="flex:3"><label>Prompt</label><input id="mdPrompt" placeholder="描述你要的内容…" onkeydown="if(event.key==='Enter')mdGenerate()"></div>
+            <div style="flex:3"><label>Prompt</label><textarea id="mdPrompt" rows="3" placeholder="描述你要的内容…(支持多行, Ctrl+Enter 生成)" style="width:100%;resize:vertical;font-family:inherit"></textarea></div>
             <div style="align-self:flex-end"><button class="btn btn-primary" id="mdGoBtn" onclick="mdGenerate()">生成</button></div>
           </div>
           <div id="mdMsg" style="font-size:.8rem;color:var(--muted)"></div>
@@ -603,6 +603,15 @@ input,select,textarea{color-scheme:dark;background-color:var(--bg-2)!important;c
       <button class="btn" onclick="closeAlertModal()">取消</button>
       <button class="btn btn-primary" onclick="saveAlertConfigFromModal(this)">保存配置</button>
     </div>
+  </div>
+</div>
+
+
+<!-- 媒体查看器 -->
+<div class="modal-overlay" id="mdViewer">
+  <div class="modal" style="max-width:900px;width:90%">
+    <div class="modal-head"><h2 id="mdViewerTitle" style="font-size:1rem">查看媒体</h2><button class="btn" style="margin-left:auto;padding:4px 10px" onclick="closeMdViewer()">✕</button></div>
+    <div class="modal-body" id="mdViewerBody" style="display:flex;justify-content:center;max-height:75vh;overflow:auto"></div>
   </div>
 </div>
 
@@ -1376,6 +1385,9 @@ refreshDash(); loadSettings();
 // ── 媒体工坊(生图/生视频/生音乐) ──
 let _mdPollTimer = null;
 function mdKindLabel(k){ return k==='image' ? '🖼 生图' : k==='video' ? '🎬 生视频' : k==='music' ? '🎵 生音乐' : k; }
+function mdEsc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escJs(s){ return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function mdSize(b){ return b > 1048576 ? (b/1048576).toFixed(1)+' MB' : Math.round(b/1024)+' KB'; }
 async function mdGenerate(btn){
   const kind = $('mdKind').value;
   const prompt = $('mdPrompt').value.trim();
@@ -1393,7 +1405,7 @@ async function mdGenerate(btn){
     if(j.ok && j.status === 'done' && (j.files||[]).length){
       msg.textContent = '✓ 生成完成(' + (j.elapsed||'?') + 's)';
       msg.style.color = 'var(--green)';
-      mdPrompt.value = '';
+      $('mdPrompt').value = '';
       mdLoad();
     }else{
       msg.textContent = '✗ ' + (j.error || j.detail || '生成失败');
@@ -1402,18 +1414,42 @@ async function mdGenerate(btn){
   }catch(e){ msg.textContent = '请求异常: ' + e; msg.style.color = 'var(--red)'; }
   goBtn.disabled = false;
 }
-function mdFileCard(f){
-  const size = f.bytes > 1048576 ? (f.bytes/1048576).toFixed(1)+' MB' : Math.round(f.bytes/1024)+' KB';
+// 单文件卡片: 预览(缩略)与 查看/下载/删除 控件同行
+function mdFileCard(f, jobId){
   let media = '';
-  if(f.kind === 'image') media = '<img src="'+f.url+'" style="max-width:100%;max-height:340px;border-radius:10px" loading="lazy">';
-  else if(f.kind === 'video') media = '<video src="'+f.url+'" controls style="max-width:100%;border-radius:10px" preload="metadata"></video>';
-  else if(f.kind === 'audio') media = '<audio src="'+f.url+'" controls style="width:100%"></audio>';
+  if(f.kind === 'image') media = '<img src="'+f.url+'" style="max-width:220px;max-height:180px;object-fit:cover;border-radius:10px;cursor:zoom-in" loading="lazy" onclick="mdView(\''+escJs(f.url)+'\',\''+f.kind+'\')">';
+  else if(f.kind === 'video') media = '<video src="'+f.url+'" style="max-width:220px;max-height:180px;border-radius:10px" preload="metadata"></video>';
+  else if(f.kind === 'audio') media = '<div style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--surface);border-radius:10px;font-size:.8rem">🎵 '+mdEsc(f.filename)+'</div>';
   else return '';
-  return '<div style="border:1px solid var(--hairline);border-radius:12px;padding:10px;background:var(--surface2)">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-    + '<span style="font-size:.78rem;color:var(--muted)">'+f.filename+' · '+size+'</span>'
-    + '<a href="'+f.url+'" download style="font-size:.78rem;color:var(--brand)">⬇ 下载</a></div>' + media + '</div>';
+  const size = mdSize(f.bytes);
+  const btn = '<button class="btn-sm dim" onclick="mdView(\''+escJs(f.url)+'\',\''+f.kind+'\')">查看</button>';
+  const dl = '<a href="'+f.url+'" download class="btn-sm dim" style="margin-left:6px;text-decoration:none">⬇ 下载</a>';
+  const del = '<button class="btn-sm dim" style="margin-left:6px;color:var(--red)" onclick="mdDel(\''+jobId+'\')">删除</button>';
+  return '<div style="display:flex;gap:12px;align-items:flex-start;min-width:0">'
+    + '<div style="flex:0 0 auto">'+media+'</div>'
+    + '<div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;align-self:stretch">'
+    + '<div style="font-size:.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+mdEsc(f.filename)+' ('+size+')</div>'
+    + '<div style="display:flex;flex-wrap:wrap;align-items:center">'+btn+dl+del+'</div></div></div>';
 }
+async function mdDel(jobId){
+  if(!confirm('删除该任务及其媒体文件?')) return;
+  try{
+    const r = await fetch('/api/media/jobs/'+jobId, {method:'DELETE'});
+    const j = await r.json();
+    if(j.ok){ mdLoad(); } else { alert('删除失败: '+(j.error||j.detail||'')); }
+  }catch(e){ alert('删除请求失败'); }
+}
+function mdView(url, kind){
+  $('mdViewerTitle').textContent = mdKindLabel(kind) + ' · 查看';
+  let body = '';
+  if(kind === 'image') body = '<img src="'+url+'" style="max-width:100%;max-height:72vh;border-radius:12px">';
+  else if(kind === 'video') body = '<video src="'+url+'" controls autoplay style="max-width:100%;max-height:72vh;border-radius:12px"></video>';
+  else if(kind === 'audio') body = '<audio src="'+url+'" controls autoplay style="width:100%"></audio>';
+  else body = '<div style="font-size:1rem">'+mdEsc(url)+'</div>';
+  $('mdViewerBody').innerHTML = body + '<div style="text-align:center;margin-top:8px"><a href="'+url+'" download class="btn">⬇ 下载</a></div>';
+  $('mdViewer').classList.add('show');
+}
+function closeMdViewer(){ $('mdViewer').classList.remove('show'); $('mdViewerBody').innerHTML=''; }
 async function mdLoad(){
   const box = $('mdList');
   try{
@@ -1422,17 +1458,23 @@ async function mdLoad(){
     const jobs = (j.jobs||[]).filter(x => (x.files||[]).length || x.status==='failed');
     if(!jobs.length){ box.innerHTML = '<span class="hint">暂无任务 — 在上方输入 prompt 生成第一张图/段视频吧</span>'; return; }
     box.innerHTML = jobs.map(job=>{
-      const head = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">'
+      const failed = job.status==='failed';
+      const statusTxt = job.status==='done' ? '✓ 完成'+(job.elapsed?' '+job.elapsed+'s':'') : failed ? '✗ 失败' : '⏳ '+job.status;
+      const stColor = job.status==='done'?'var(--green)':failed?'var(--red)':'#e6a23c';
+      const head = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">'
         + '<span style="font-weight:600;font-size:.85rem">'+mdKindLabel(job.kind)+'</span>'
-        + '<span style="font-size:.75rem;color:'+(job.status==='done'?'var(--green)':job.status==='failed'?'var(--red)':'#e6a23c')+'">'
-        + (job.status==='done' ? '✓ 完成'+(job.elapsed?' '+job.elapsed+'s':'') : job.status==='failed' ? '✗ 失败' : '⏳ '+job.status)
-        + '</span><span style="font-size:.72rem;color:var(--muted);flex:1">'+(job.prompt||'')+'</span>'
-        + '<span style="font-size:.72rem;color:var(--muted)">'+new Date(job.created*1000).toLocaleString('zh-CN',{hour:'2-digit',minute:'2-digit'})+'</span></div>';
-      if(job.status === 'failed') return '<div>'+head+'<div style="font-size:.78rem;color:var(--red)">'+(job.error||'')+'</div></div>';
-      const cards = (job.files||[]).filter(f=>f.kind!=='video_thumbnail').map(mdFileCard).join('');
-      return '<div>'+head+'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">'+cards+'</div></div>';
+        + '<span style="font-size:.75rem;color:'+stColor+'">'+statusTxt+'</span>'
+        + '<span style="font-size:.72rem;color:var(--muted);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+mdEsc(job.prompt||'')+'</span>'
+        + '<span style="font-size:.72rem;color:var(--muted)">'+new Date(job.created*1000).toLocaleString('zh-CN',{hour:'2-digit',minute:'2-digit'})+'</span>'
+        + '<button class="btn-sm dim" style="margin-left:6px" onclick="mdDel(\''+job.job_id+'\')">删除</button></div>';
+      let body = '';
+      if(failed){ body = '<div style="font-size:.78rem;color:var(--red)">'+mdEsc(job.error||'')+'</div>'; }
+      else {
+        const cards = (job.files||[]).filter(f=>f.kind!=='video_thumbnail').map(f=>mdFileCard(f, job.job_id)).join('');
+        body = '<div style="display:flex;flex-direction:column;gap:10px">'+cards+'</div>';
+      }
+      return '<div style="border:1px solid var(--hairline);border-radius:12px;padding:12px;background:var(--surface2)">'+head+body+'</div>';
     }).join('');
-    // 有进行中任务时 5s 轮询刷新
     const pending = (j.jobs||[]).some(x => x.status==='pending' || x.status==='generating');
     if(pending){ clearTimeout(_mdPollTimer); _mdPollTimer = setTimeout(mdLoad, 5000); }
   }catch(e){ box.innerHTML = '<span class="hint">加载失败</span>'; }

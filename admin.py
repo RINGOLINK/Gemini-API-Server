@@ -820,7 +820,17 @@ def setup_middleware(app):
 async def media_jobs(token: str = Depends(verify_admin_token)):
     """最近媒体任务清单(看板展示,含签名文件 URL)。"""
     import media_api as _ma
-    return {"ok": True, "jobs": _ma.jobs_list(limit=50)}
+    return {"ok": True, "jobs": _ma.jobs_list(limit=50, base=_ma._default_base())}
+
+
+@router.delete("/api/media/jobs/{job_id}")
+async def media_job_delete(job_id: str, token: str = Depends(verify_admin_token)):
+    """删除最近任务卡片(含磁盘文件)。"""
+    import media_api as _ma
+    ok = _ma.delete_job(job_id)
+    if not ok:
+        raise HTTPException(404, "媒体任务不存在")
+    return {"ok": True, "message": "已删除"}
 
 
 @router.post("/api/media/generate")

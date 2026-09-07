@@ -58,14 +58,19 @@ def _new_job(kind: str, prompt: str) -> str:
     return job_id
 
 
+def _default_base() -> str:
+    """媒体文件 URL 的默认基址: 优先 PUBLIC_BASE_URL,否则指向 4444 主服务(文件服务所在)。"""
+    from main import PUBLIC_BASE_URL
+    return str(PUBLIC_BASE_URL).rstrip("/") if PUBLIC_BASE_URL else "http://127.0.0.1:4444"
+
+
 def _signed_media_url(media_id: str, request=None, ttl: int = 86400, base: str = "") -> str:
     from main import PUBLIC_BASE_URL, SIGNATURE_SECRET
     exp = int(time.time()) + ttl
     sig = _hmac.new(str(SIGNATURE_SECRET).encode(), f"{media_id}|{exp}".encode(),
                     hashlib.sha256).hexdigest()
     if not base:
-        base = str(PUBLIC_BASE_URL).rstrip("/") if PUBLIC_BASE_URL else (
-            str(request.base_url).rstrip("/") if request is not None else "")
+        base = _default_base() if request is None else str(request.base_url).rstrip("/")
     return f"{base}/v1/media/file/{media_id}?exp={exp}&sig={sig}"
 
 
@@ -351,6 +356,8 @@ async def media_job(job_id: str, request: Request):
 def jobs_list(limit: int = 50, base: str = "") -> list:
     """最近任务清单(看板用),新→旧。"""
     out = []
+    if not base:
+        base = _default_base()
     for jid, j in sorted(_jobs.items(), key=lambda kv: kv[1]["created"], reverse=True)[:limit]:
         e = dict(j)
         e["job_id"] = jid
@@ -360,3 +367,11 @@ def jobs_list(limit: int = 50, base: str = "") -> list:
                       for f in j.get("files", [])]
         out.append(e)
     return out
+
+def delete_job(job_id: str) -> bool:
+    """删除一个媒体任务及其磁盘文件(看板删除用)。"""
+    if job_id not in _jobs:
+        return False
+    _jobs.pop(job_id, None)
+    shutil.rmtree(MEDIA_ROOT / job_id, ignore_errors=True)
+    return True

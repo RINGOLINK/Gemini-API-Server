@@ -179,6 +179,19 @@ class DashHandler(BaseHTTPRequestHandler):
         else:
             self._send(404, '{"detail":"Not Found"}')
 
+
+
+    def do_DELETE(self):
+        """删除类操作桥接(如删除媒体任务)。"""
+        import json as _json
+        path = self.path.split("?")[0]
+        if path.startswith("/api/media/jobs/"):
+            jid = path.rsplit("/", 1)[-1]
+            r = proxy_admin("DELETE", f"/admin/api/media/jobs/{jid}")
+            self._send(200, _json.dumps(r, ensure_ascii=False))
+        else:
+            self._send(404, '{"detail":"Not Found"}')
+
     def do_POST(self):
         try:
             length = int(self.headers.get("Content-Length", 0))
