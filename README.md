@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 # Gemini-API-Server
 
@@ -358,6 +358,43 @@ Gemini 网页版没有原生函数调用,本项目用"提示词协议 + 标签�
 | ERROR | 代理判死、凭据自愈失败 |
 | WARNING | 熔断打开、连续计划收尾、上下文 LLM 压缩、余额刷新失败 |
 
+
+## 媒体生成(生图 / 生视频 / 生音乐)
+
+基于 Gemini 网页版的 Imagein / Veo / Lyria 能力,账号池直接承接媒体生成任务。
+
+### OpenAI 兼容生图
+
+```bash
+curl http://127.0.0.1:4444/v1/images/generations \
+  -H "Authorization: Bearer sk-xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "一只戴宇航员头盔的橘猫", "n": 1, "response_format": "url"}'
+```
+
+返回 OpenAI 标准形状 `{"created": ..., "data": [{"url": ...}]}`;`response_format: "b64_json"` 返回 base64。
+
+### 视频(Veo)与音乐(Lyria)
+
+```bash
+curl http://127.0.0.1:4444/v1/media/video \
+  -H "Authorization: Bearer sk-xxx" -H "Content-Type: application/json" \
+  -d '{"prompt": "a golden retriever running through flowers, slow motion", "wait": true}'
+```
+
+返回 `{status: "done", files: [{kind: "video", url: "...", bytes: ...}]}`(含缩略图)。音乐同构:`/v1/media/music`。
+
+- **同步模式**(`wait: true`):直接等待生成完成(视频约 1~2 分钟)
+- **异步模式**(`wait: false`):立即返回 `job_id`,用 `GET /v1/media/jobs/{job_id}` 轮询
+- **文件服务**:`/v1/media/file/{media_id}` 带过期时间的 HMAC 签名链接,可直接嵌入 `<img>/<video>/<audio>`;文件默认保留 24 小时(`GEMINI_MEDIA_TTL_HOURS`)
+- **配额说明**:视频/音乐消耗 Google 订阅计划的独立额度(与积分分开);额度不足返回 429 与友好提示
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `GEMINI_MEDIA_TTL_HOURS` | `24` | 媒体文件保留时长(小时) |
+| `GEMINI_MEDIA_TIMEOUT` | `280` | 单次生成超时(秒) |
+| `GEMINI_MEDIA_DL_TIMEOUT` | `240` | 单文件下载+轮询超时(秒) |
+| `GEMINI_MEDIA_CONCURRENCY` | `2` | 全局媒体生成并发 |
 ## Docker 部署
 
 ```bash

@@ -1,3 +1,12 @@
+﻿# Changelog
+
+## 未发布 / Unreleased (v1.3-dev)
+
+### 新增 / Added
+
+- **媒体生成端点**: `/v1/images/generations`(OpenAI 兼容,url/b64_json)、`/v1/media/video`(Veo)、`/v1/media/music`(Lyria)、`/v1/media/image`;同步(wait=true)与异步(wait=false + job 轮询)双模式
+- **签名媒体文件服务**: `/v1/media/file/{media_id}`(HMAC 过期签名,可直接嵌入 <img>/<video>/<audio>),媒体落盘 media_store/ 并 24h TTL 自动清理
+- **媒体端点鉴权分级**: 生成类端点走 API_KEY,文件服务走签名(可嵌入网页标签)
 # v1.2 更新日志 / Changelog
 
 **发布日期 / Release date:** 2026-09-07
@@ -73,3 +82,4 @@
 ### Download
 
 - `Gemini-API-Server-v1.2-win64-portable.zip` — Windows portable one-click package (no Python install required; unzip and run)
+

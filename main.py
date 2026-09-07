@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import base64
 from collections import deque
 import hashlib
@@ -461,6 +461,9 @@ async def lifespan(app: FastAPI):
 	patrol_task = asyncio.create_task(_account_patrol_loop())
 	# 代理池健康探测(方向二): 后台周期探测出口代理,判死联动路由排除/告警/免误杀
 	proxy_task = asyncio.create_task(_proxy_health_loop())
+	# 媒体生成 TTL 清理(media_store 24h 自动清理)
+	import media_api
+	media_ttl_task = asyncio.create_task(media_api._ttl_cleanup_loop())
 	try:
 		yield
 	finally:
@@ -481,6 +484,11 @@ async def lifespan(app: FastAPI):
 			await proxy_task
 		except asyncio.CancelledError:
 			pass
+		media_ttl_task.cancel()
+		try:
+			await media_ttl_task
+		except asyncio.CancelledError:
+			pass
 		global gemini_client
 		if gemini_client is not None:
 			try:
@@ -497,6 +505,9 @@ app = FastAPI(title="Gemini API FastAPI Server", lifespan=lifespan)
 from admin import router as admin_router, setup_middleware, request_chars_var
 app.include_router(admin_router)
 setup_middleware(app)
+
+# 媒体生成服务(生图/生视频/生音乐): 路由定义见 media_api.py,
+# 在 verify_api_key 定义之后挂载(见文件后段 include_router)
 
 
 def get_gemini_webapi_version() -> str:
@@ -1048,6 +1059,11 @@ async def verify_api_key(authorization: str = Header(None)):
 		)
 
 	return token
+
+
+# 媒体生成服务(生图/生视频/生音乐): 复用 API_KEY 鉴权,挂载于鉴权依赖定义之后
+import media_api as _media_api
+app.include_router(_media_api.router)
 
 
 # ============ OpenAI 风格错误契约(供 Agent 客户端按语义分类,而非裸 500) ============
