@@ -1484,7 +1484,8 @@ async def _init_pool_account_inner(st: dict, light: bool = False):
 		_last = None
 		for _try in range(2):
 			try:
-				await client.init(timeout=90, auto_refresh=False, watchdog_timeout=150)
+				# watchdog 300s: 长视频生成(3.5min)断流后 recovery 轮询窗口需覆盖剩余生成时长,150s 不够
+				await client.init(timeout=90, auto_refresh=False, watchdog_timeout=300)
 				_last = None
 				break
 			except Exception as e:

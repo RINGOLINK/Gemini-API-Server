@@ -380,6 +380,13 @@ async def _do_generate(job_id: str, kind: str, prompt: str,
             j["error"] = f"生成超时({MEDIA_GEN_TIMEOUT:.0f}s)——视频类生成较慢,建议 wait=false 异步模式"
             return job_snapshot(job_id)
         except Exception as e:
+            _es = str(e)
+            # 断流瞬时错误自动重试一次(上游 3 分钟长生成流式连接偶发中断,重试常成功)
+            if (not j.get("_retried")) and ("connection to Gemini was lost" in _es or "recovery timed out" in _es):
+                j["_retried"] = True
+                _tlog().warning("[media] %s 断流,自动重试一次 job=%s", kind, job_id)
+                await asyncio.sleep(3)
+                return await _do_generate(job_id, kind, prompt, refs, ref_kind)
             j["status"] = "failed"
             j["error"] = f"{type(e).__name__}: {str(e)[:200]}"
             _tlog().warning("[media] %s 生成失败 job=%s %s", kind, job_id, j["error"])

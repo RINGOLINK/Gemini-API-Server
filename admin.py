@@ -419,10 +419,14 @@ async def get_alerts(token: str = Depends(verify_admin_token)):
 
 @router.post("/api/accounts/refresh")
 async def refresh_accounts_balance(token: str = Depends(verify_admin_token)):
-	"""刷新所有已登录账号的余额(懒初始化 client + 读配额)"""
+	"""刷新所有已登录账号的余额(懒初始化 client + 读配额)。
+	返回扁平化: started/refreshing/accounts 提到顶层(此前嵌套在 accounts 里,
+	导致只看 j.started||j.refreshing 的旧前端判定失败,点击无反应)。"""
 	import main
 	results = await main.refresh_accounts_balance()
-	return {"ok": True, "accounts": results, "active_pid": main._active_pool_pid}
+	flat = {"ok": True, "active_pid": main._active_pool_pid}
+	flat.update(results)  # started / refreshing / accounts / summary 等全部展开到顶层
+	return flat
 
 
 @router.post("/api/accounts/{pid}/switch")
