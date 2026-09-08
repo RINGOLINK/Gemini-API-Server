@@ -458,7 +458,7 @@ input,select,textarea{color-scheme:dark;background-color:var(--bg-2)!important;c
           </div>
           <div class="row" id="mdRefRow" style="gap:10px;margin-bottom:10px;align-items:center">
             <label style="font-size:.8rem;color:var(--muted);white-space:nowrap">📎 参考图(可选)</label>
-            <input type="file" id="mdRefFile" accept="image/png,image/jpeg,image/webp" style="flex:1;font-size:.78rem">
+            <input type="file" id="mdRefFile" accept="image/png,image/jpeg,image/webp" multiple style="flex:1;font-size:.78rem">
             <span id="mdRefInfo" style="font-size:.75rem;color:var(--muted)"></span>
           </div>
           <div id="mdMsg" style="font-size:.8rem;color:var(--muted)"></div>
@@ -1531,18 +1531,42 @@ async function mdLoad(){
 const _origSwitchPage = switchPage;
 switchPage = function(p){ _origSwitchPage(p); if(p === 'media'){ mdLoad(); mdKindChangeUi(); } };
 // ── 媒体工坊: 参考图上传 + API 接入信息 ──
-let _mdRefDataUrl = null;
+let _mdRefFiles = [];  // [{name, size, dataUrl}]
+function mdRefRender(){
+  const info = \mdRefInfo;
+  info.innerHTML = '';
+  if(!_mdRefFiles.length){ info.innerHTML = '<span style="font-size:.75rem;color:var(--muted)">未选择参考图</span>'; return; }
+  const chips = _mdRefFiles.map(function(r, idx){
+    return '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--hairline);border-radius:8px;padding:2px 6px;font-size:.72rem;color:var(--text)">'
+      + '<img src="'+r.dataUrl+'" style="width:20px;height:20px;object-fit:cover;border-radius:4px">'
+      + r.name + ' ('+Math.round(r.size/1024)+' KB) '
+      + '<button type="button" title="移除" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:.85rem;line-height:1;padding:0" onclick="mdRefRemove('+idx+')">✕</button>'
+      + '</span>';
+  }).join(' ');
+  info.innerHTML = '<span style="font-size:.75rem;color:var(--green)">已选 '+_mdRefFiles.length+' 张:</span> ' + chips;
+}
+function mdRefRemove(idx){
+  _mdRefFiles.splice(idx, 1);
+  $('mdRefFile').value = '';
+  mdRefRender();
+}
 document.addEventListener('change', function(e){
   if(e.target && e.target.id === 'mdRefFile'){
-    const file = e.target.files && e.target.files[0];
-    if(!file){ _mdRefDataUrl = null; $('mdRefInfo').textContent=''; return; }
-    const rd = new FileReader();
-    rd.onload = function(){
-      _mdRefDataUrl = rd.result;
-      $('mdRefInfo').textContent = '✓ ' + file.name + ' (' + Math.round(file.size/1024) + ' KB)';
-      $('mdRefInfo').style.color = 'var(--green)';
-    };
-    rd.readAsDataURL(file);
+    const files = e.target.files || [];
+    if(!files.length) return;
+    let pending = files.length, added = 0;
+    for(let i=0;i<files.length;i++){
+      const file = files[i];
+      if(!file) continue;
+      const rd = new FileReader();
+      rd.onload = (function(f){ return function(){
+        _mdRefFiles.push({name: f.name, size: f.size, dataUrl: rd.result});
+        added++;
+        if(--pending === 0){ e.target.value=''; mdRefRender(); }
+      };})(file);
+      rd.readAsDataURL(file);
+    }
+    if(added === 0) mdRefRender();
   }
 });
 function mdKindChangeUi(){ const k = $('mdKind').value; $('mdRefRow').style.display = (k === 'music') ? 'none' : 'flex'; }
@@ -1569,12 +1593,12 @@ mdGenerate = async function(btn){
   msg.textContent = mdKindLabel(kind) + ' 生成中(视频约 1~2 分钟)…'; msg.style.color='';
   try{
     const payload = {kind, prompt, wait: true};
-    if(_mdRefDataUrl && kind !== 'music') payload.image = _mdRefDataUrl;
+    if(_mdRefFiles.length && kind !== 'music') payload.image = _mdRefFiles.map(function(r){ return r.dataUrl; });
     const r = await fetch('/api/media/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
     const j = await r.json();
     if(j.ok && j.status === 'done' && (j.files||[]).length){
       msg.textContent = '✓ 生成完成(' + (j.elapsed||'?') + 's)'; msg.style.color='var(--green)';
-      $('mdPrompt').value = ''; _mdRefDataUrl = null; $('mdRefFile').value=''; $('mdRefInfo').textContent='';
+      $('mdPrompt').value = ''; _mdRefFiles = []; mdRefRender(); $('mdRefFile').value=''; $('mdRefInfo').textContent='';
       mdLoad();
     }else{ msg.textContent = '✗ ' + (j.error || j.detail || '生成失败'); msg.style.color='var(--red)'; }
   }catch(e){ msg.textContent = '请求异常: ' + e; msg.style.color='var(--red)'; }
