@@ -406,29 +406,10 @@ input,select,textarea{color-scheme:dark;background-color:var(--bg-2)!important;c
 
 
     <!-- ═══════════ 媒体工坊(生图/生视频/生音乐)═══ -->
+        <!-- ═══════════ 媒体工坊(生图/生视频/生音乐)═══ -->
     <div class="page" id="p-media">
       <div class="two-col col">
         <div class="panel" style="margin-bottom:14px">
-          <div class="acc-head"><h2>生成新媒体</h2></div>
-          <div class="row" style="gap:10px;margin-bottom:10px">
-            <div style="flex:1"><label>类型</label>
-              <select id="mdKind" style="width:100%">
-                <option value="image">🖼 生图(Imagein)</option>
-                <option value="video">🎬 生视频(Veo,约1~2分钟)</option>
-                <option value="music">🎵 生音乐(Lyria)</option>
-              </select>
-            </div>
-            <div style="flex:3"><label>Prompt</label><textarea id="mdPrompt" rows="3" placeholder="描述你要的内容…(支持多行, Ctrl+Enter 生成)" style="width:100%;resize:vertical;font-family:inherit"></textarea></div>
-            <div style="align-self:flex-end"><button class="btn btn-primary" id="mdGoBtn" onclick="mdGenerate()">生成</button></div>
-          </div>
-          <div id="mdMsg" style="font-size:.8rem;color:var(--muted)"></div>
-        </div>
-        <div class="panel" style="margin-bottom:0">
-          <div class="acc-head"><h2>最近任务</h2><button class="btn" onclick="mdLoad()">刷新</button></div>
-          <div id="mdList" style="display:flex;flex-direction:column;gap:14px"><span class="hint">加载中…</span></div>
-        </div>
-      </div>
-    </div>        <div class="panel" style="margin-bottom:0">
           <div class="acc-head"><h2>📡 API 接入信息</h2><button class="btn" onclick="mdToggleApi()">展开/收起</button></div>
           <div id="mdApiInfo" style="display:none;margin-top:10px">
             <div style="font-size:.78rem;color:var(--muted);margin-bottom:10px;line-height:1.6">
@@ -445,7 +426,7 @@ input,select,textarea{color-scheme:dark;background-color:var(--bg-2)!important;c
 
 # 返回: {"created":..., "data": [{"url": ".../v1/media/file/xxx?exp=...&sig=..."}]}
 # response_format: "b64_json" 时返回 base64</pre></details>
-            <details><summary style="cursor:pointer;font-weight:600;font-size:.82rem;margin-top:8px">🎬 生视频(Veo)</summary>
+            <details><summary style="cursor:pointer;font-weight:600;font-size:.82rem;margin-top:10px">🎬 生视频(Veo)</summary>
             <pre style="background:var(--surface2);border:1px solid var(--hairline);border-radius:10px;padding:10px;font-size:.72rem;overflow-x:auto;white-space:pre-wrap;margin-top:6px">POST /v1/media/video
 {"prompt": "一只金毛犬在花田奔跑", "wait": true}
 
@@ -454,15 +435,40 @@ input,select,textarea{color-scheme:dark;background-color:var(--bg-2)!important;c
 
 # 返回: {"status": "done", "files": [{"kind": "video", "url": "http://..."}]}
 # wait: false 时返回 job_id,用 GET /v1/media/jobs/{job_id} 轮询</pre></details>
-            <details><summary style="cursor:pointer;font-weight:600;font-size:.82rem;margin-top:8px">🎵 生音乐(Lyria)</summary>
+            <details><summary style="cursor:pointer;font-weight:600;font-size:.82rem;margin-top:10px">🎵 生音乐(Lyria)</summary>
             <pre style="background:var(--surface2);border:1px solid var(--hairline);border-radius:10px;padding:10px;font-size:.72rem;overflow-x:auto;white-space:pre-wrap;margin-top:6px">POST /v1/media/music
 {"prompt": "轻柔的钢琴曲,雨夜巴黎", "wait": true}
 
 # 返回: {"status": "done", "files": [{"kind": "audio", "url": "http://..."}]}</pre></details>
-            <div style="margin-top:8px"><button class="btn btn-sm" onclick="mdCopyExample()">📋 复制 curl 示例</button><span id="mdCopyMsg" style="font-size:.75rem;margin-left:8px"></span></div>
+            <div style="margin-top:10px"><button class="btn btn-sm" onclick="mdCopyExample()">📋 复制 curl 示例</button><span id="mdCopyMsg" style="font-size:.75rem;margin-left:8px"></span></div>
           </div>
         </div>
-
+        <div class="panel" style="margin-bottom:14px">
+          <div class="acc-head"><h2>生成新媒体</h2></div>
+          <div class="row" style="gap:10px;margin-bottom:10px">
+            <div style="flex:1"><label>类型</label>
+              <select id="mdKind" style="width:100%">
+                <option value="image">🖼 生图(Imagein)</option>
+                <option value="video">🎬 生视频(Veo,约1~2分钟)</option>
+                <option value="music">🎵 生音乐(Lyria)</option>
+              </select>
+            </div>
+            <div style="flex:3"><label>Prompt</label><textarea id="mdPrompt" rows="3" placeholder="描述你要的内容…(支持多行, Ctrl+Enter 生成)" style="width:100%;resize:vertical;font-family:inherit"></textarea></div>
+            <div style="align-self:flex-end"><button class="btn btn-primary" id="mdGoBtn" onclick="mdGenerate()">生成</button></div>
+          </div>
+          <div class="row" id="mdRefRow" style="gap:10px;margin-bottom:10px;align-items:center">
+            <label style="font-size:.8rem;color:var(--muted);white-space:nowrap">📎 参考图(可选)</label>
+            <input type="file" id="mdRefFile" accept="image/png,image/jpeg,image/webp" style="flex:1;font-size:.78rem">
+            <span id="mdRefInfo" style="font-size:.75rem;color:var(--muted)"></span>
+          </div>
+          <div id="mdMsg" style="font-size:.8rem;color:var(--muted)"></div>
+        </div>
+        <div class="panel" style="margin-bottom:0">
+          <div class="acc-head"><h2>最近任务</h2><button class="btn" onclick="mdLoad()">刷新</button></div>
+          <div id="mdList" style="display:flex;flex-direction:column;gap:14px"><span class="hint">加载中…</span></div>
+        </div>
+      </div>
+    </div>
     <!-- ═══════════ 指纹浏览器管理 ═══════════ -->
     <div class="page" id="p-fp">
       <div class="row" style="margin-bottom:16px">
