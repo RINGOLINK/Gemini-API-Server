@@ -353,10 +353,16 @@ def proxy_admin(method: str, path: str, payload=None, timeout: int = 150) -> dic
 
 
 _QUICK_FAIL_LOG: dict = {}  # path -> last log time(60s 去重,启动期 4444 忙时不刷屏)
+_CORE_BOOT_TS: float = time.time()  # 服务进程启动时刻(启动宽限期用)
 
 
 def proxy_admin_quick(method: str, path: str, payload=None, timeout: float = 3.0) -> dict:
     """看板用短超时版: 4444 未就绪时快速失败,绝不阻塞页面(根因修复: 原 150s 超时卡死看板)。"""
+    # 启动宽限期: 4444 初始化账号需 20~40s,3s 超时在启动期太激进会刷屏。
+    # 启动后 180s 内放宽到 8s 且失败静默(运行期保持 3s 快速失败)。
+    grace = (time.time() - _CORE_BOOT_TS) < 180
+    if grace:
+        timeout = max(timeout, 8.0)
     if not _ensure_admin_token():
         return {"ok": False, "error": "管理面板登录失败"}
     try:
@@ -365,7 +371,8 @@ def proxy_admin_quick(method: str, path: str, payload=None, timeout: float = 3.0
     except Exception as e:
         ADMIN_TOKEN["token"] = ""
         now = time.time()
-        if now - _QUICK_FAIL_LOG.get(path, 0) >= 60:
+        # 启动宽限期内静默(不刷屏);运行期 60s 去重
+        if not grace and now - _QUICK_FAIL_LOG.get(path, 0) >= 60:
             _QUICK_FAIL_LOG[path] = now
             app_log(f"[看板] {path} 快速失败({timeout}s): {str(e)[:80]}")
         return {"ok": False, "error": str(e)[:120]}

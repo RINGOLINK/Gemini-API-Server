@@ -245,6 +245,41 @@ def _cleanup_refs(paths: list) -> None:
             pass
 
 
+def _probe_proxy() -> str | None:
+    """探测可用上传代理(用于 content-push 上传;直连 multipart POST 常被运营商掐断)。
+    优先环境变量 GEMINI_UPLOAD_PROXY,其次常用本地端口;不可达返回 None。"""
+    import socket as _sk
+    cands = []
+    env = (os.environ.get("GEMINI_UPLOAD_PROXY") or "").strip()
+    if env:
+        cands.append(env)
+    for _port in (12000, 7890, 10809, 1080):
+        s = _sk.socket(); s.settimeout(0.5)
+        try:
+            s.connect(("127.0.0.1", _port)); cands.append(f"http://127.0.0.1:{_port}")
+        except Exception:
+            pass
+        finally:
+            try: s.close()
+            except Exception: pass
+    return cands[0] if cands else None
+
+
+async def _upload_refs_proxy(ref_files: list, client, proxy: str) -> list:
+    """用独立代理会话上传参考文件到 content-push,返回 [[[rid], filename], ...]。
+    与直连会话解耦: 上传走代理(绕被掐),生成仍用直连会话(避代理 IP 风控)。"""
+    from gemini_webapi.utils.upload_file import upload_file
+    from curl_cffi.requests import AsyncSession as _AS
+    out = []
+    async with _AS(impersonate="chrome", proxy=proxy, allow_redirects=True) as up:
+        for fp in ref_files:
+            fname = Path(fp).name
+            rid = await asyncio.wait_for(
+                upload_file(fp, client=up, push_id=client.push_id, filename=fname), timeout=60)
+            out.append([[rid], fname])
+    return out
+
+
 async def generate_media(kind: str, prompt: str, wait: bool = True,
                          refs: list | None = None, ref_kind: str = "image") -> dict:
     """媒体生成主入口。kind: image | video | music。
@@ -294,11 +329,36 @@ async def _do_generate(job_id: str, kind: str, prompt: str,
                          kind, pid, job_id, prompt[:60], len(ref_files))
             try:
                 gen_kwargs = {}
+                used_proxy_upload = False
                 if ref_files:
-                    gen_kwargs["files"] = ref_files
-                resp = await asyncio.wait_for(client.generate_content(prompt, **gen_kwargs),
-                                              timeout=MEDIA_GEN_TIMEOUT)
-                files = await _save_media_objects(resp, job_id)
+                    # 直连 content-push multipart POST 常被运营商掐(21s timeout);
+                    # 有可用本地代理时改走"代理上传 + 直连生成"(req_file_data 引用已上传资源)。
+                    _pxy = _probe_proxy()
+                    if _pxy and getattr(client, "push_id", None):
+                        try:
+                            req_data = await _upload_refs_proxy(ref_files, client, _pxy)
+                            if not req_data:
+                                raise RuntimeError("代理上传返回空")
+                            used_proxy_upload = True
+                            _tlog().info("[media] 参考图经代理上传 %d 个(proxy=%s)", len(req_data), _pxy)
+                            resp = None
+                            async for _out in client._generate(prompt, req_file_data=req_data,
+                                                               temporary=True):
+                                resp = _out
+                            files = await _save_media_objects(resp, job_id)
+                        except Exception as _ue:
+                            if used_proxy_upload:
+                                # 上传已成功,失败发生在生成阶段 → 直接报错,绝不回落重传(浪费3分钟)
+                                raise
+                            _tlog().warning("[media] 代理上传阶段失败,回落直连 files=: %s", str(_ue)[:100])
+                            used_proxy_upload = False
+                if not used_proxy_upload:
+                    gen_kwargs = {}
+                    if ref_files:
+                        gen_kwargs["files"] = ref_files
+                    resp = await asyncio.wait_for(client.generate_content(prompt, **gen_kwargs),
+                                                  timeout=MEDIA_GEN_TIMEOUT)
+                    files = await _save_media_objects(resp, job_id)
             finally:
                 # 生成完成立即归还(媒体下载已由 save 内部完成,无需长期占用会话)
                 await release_client()
