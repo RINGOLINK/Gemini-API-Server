@@ -1590,13 +1590,24 @@ mdGenerate = async function(btn){
   if(!prompt){ msg.textContent='请先输入 prompt'; msg.style.color='var(--red)'; return; }
   const goBtn = btn || $('mdGoBtn');
   goBtn.disabled = true;
-  msg.textContent = mdKindLabel(kind) + ' 生成中(视频约 1~2 分钟)…'; msg.style.color='';
+  // 视频: wait=false 异步提交(上游 3 分钟长生成易流式断连,同步等待整请求会失败;
+  // 改为后台任务 + 任务列表自动轮询,断流时任务失败也会展示错误而非整请求超时)
+  const asyncMode = (kind === 'video');
+  msg.textContent = asyncMode ? '🎬 已提交视频生成(后台执行,任务列表自动刷新)…' : (mdKindLabel(kind) + ' 生成中…');
+  msg.style.color='';
   try{
-    const payload = {kind, prompt, wait: true};
+    const payload = {kind, prompt, wait: !asyncMode};
     if(_mdRefFiles.length && kind !== 'music') payload.image = _mdRefFiles.map(function(r){ return r.dataUrl; });
     const r = await fetch('/api/media/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
     const j = await r.json();
-    if(j.ok && j.status === 'done' && (j.files||[]).length){
+    if(asyncMode){
+      // 异步模式: 立即清输入,任务列表轮询出结果
+      if(j.ok && j.job_id){
+        msg.textContent = '✓ 已提交任务 ' + j.job_id.slice(0,8) + '…(生成中,列表自动刷新)'; msg.style.color='var(--green)';
+        $('mdPrompt').value = ''; _mdRefFiles = []; mdRefRender(); $('mdRefFile').value=''; $('mdRefInfo').textContent='';
+        mdLoad();
+      }else{ msg.textContent = '✗ 提交失败: ' + (j.error || j.detail || '未知错误'); msg.style.color='var(--red)'; }
+    }else if(j.ok && j.status === 'done' && (j.files||[]).length){
       msg.textContent = '✓ 生成完成(' + (j.elapsed||'?') + 's)'; msg.style.color='var(--green)';
       $('mdPrompt').value = ''; _mdRefFiles = []; mdRefRender(); $('mdRefFile').value=''; $('mdRefInfo').textContent='';
       mdLoad();

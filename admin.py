@@ -823,6 +823,21 @@ async def media_jobs(token: str = Depends(verify_admin_token)):
     return {"ok": True, "jobs": _ma.jobs_list(limit=50, base=_ma._default_base())}
 
 
+@router.get("/api/media/jobs/{job_id}")
+async def media_job_get(job_id: str, token: str = Depends(verify_admin_token)):
+    """单任务状态(异步轮询用)。"""
+    import media_api as _ma
+    snap = _ma.job_snapshot(job_id)
+    if not snap or snap.get("job_id") != job_id:
+        raise HTTPException(404, "媒体任务不存在")
+    base = "http://127.0.0.1:4444"
+    snap["files"] = [{"media_id": f["media_id"], "kind": f["kind"], "filename": f["filename"],
+                      "bytes": f["bytes"],
+                      "url": _ma._signed_media_url(f["media_id"], ttl=86400, base=base)}
+                     for f in snap.get("files", [])]
+    return snap
+
+
 @router.delete("/api/media/jobs/{job_id}")
 async def media_job_delete(job_id: str, token: str = Depends(verify_admin_token)):
     """删除最近任务卡片(含磁盘文件)。"""

@@ -187,6 +187,11 @@ class DashHandler(BaseHTTPRequestHandler):
             self._send(200, json.dumps(proxy_admin_quick("GET", "/admin/api/alerts/config"), ensure_ascii=False))
         elif path == "/api/media/jobs":
             self._send(200, json.dumps(proxy_admin_quick("GET", "/admin/api/media/jobs"), ensure_ascii=False))
+        elif path.startswith("/api/media/jobs/"):
+            # 单任务异步轮询: /api/media/jobs/{job_id}
+            jid = path.rsplit("/", 1)[-1]
+            r = proxy_admin_quick("GET", f"/admin/api/media/jobs/{jid}")
+            self._send(200, json.dumps(r, ensure_ascii=False))
         else:
             self._send(404, '{"detail":"Not Found"}')
 
