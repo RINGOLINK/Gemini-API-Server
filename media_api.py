@@ -175,25 +175,109 @@ async def _save_media_objects(resp, job_id: str) -> list:
     return files
 
 
-async def generate_media(kind: str, prompt: str, wait: bool = True) -> dict:
-    """媒体生成主入口。kind: image | video | music。wait=False 返回 job_id 供轮询。"""
+# ───────── 参考输入支持 ─────────
+# 图生图/图生视频/音频参考: 端点接收 image/audio 字段(base64 data-url 或 http(s) url),
+# 统一落盘为临时文件后经 generate_content(files=[...]) 注入(库 upload_file → ttl_1d 资源)。
+
+def _resolve_reference_input(refs, kind_hint: str) -> list[str]:
+    """把参考输入字段解析为本地临时文件路径列表。
+    refs: None / str / list[str] (每个元素为 data-url 或 http(s) url)
+    返回文件路径列表;解析失败抛 400。"""
+    if not refs:
+        return []
+    if isinstance(refs, str):
+        refs = [refs]
+    if not isinstance(refs, list):
+        raise HTTPException(400, "参考输入(image/audio)必须是 base64 data-url 或 URL 字符串,或字符串数组")
+    out = []
+    for i, item in enumerate(refs):
+        if not isinstance(item, str) or not item.strip():
+            continue
+        item = item.strip()
+        ext = ".png"
+        if kind_hint == "audio":
+            ext = ".mp3"
+        try:
+            if item.startswith("data:"):
+                # data:image/png;base64,xxxx
+                head, _, b64 = item.partition(",")
+                if "base64" not in head:
+                    raise ValueError("仅支持 base64 data-url")
+                m = head.split(";")[0].split(":")[1] if ":" in head else "image/png"
+                if "audio" in m:
+                    ext = ".mp3"
+                elif "video" in m:
+                    ext = ".mp4"
+                elif "jpeg" in m or "jpg" in m:
+                    ext = ".jpg"
+                elif "webp" in m:
+                    ext = ".webp"
+                data = base64.b64decode(b64)
+            elif item.startswith(("http://", "https://")):
+                import urllib.request as _ur
+                with _ur.urlopen(item, timeout=30) as r:
+                    data = r.read()
+                ct = r.headers.get("Content-Type", "")
+                if "audio" in ct:
+                    ext = ".mp3"
+                elif "video" in ct:
+                    ext = ".mp4"
+            else:
+                raise ValueError("参考输入必须是 data-url 或 http(s) URL")
+            if not data:
+                raise ValueError("参考输入内容为空")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(400, f"参考输入 #{i + 1} 解析失败: {str(e)[:120]}")
+        tmp = MEDIA_ROOT / f"_ref_{uuid.uuid4().hex[:12]}{ext}"
+        tmp.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_bytes(data)
+        out.append(str(tmp))
+    return out
+
+
+def _cleanup_refs(paths: list) -> None:
+    for p in paths or []:
+        try:
+            Path(p).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+async def generate_media(kind: str, prompt: str, wait: bool = True,
+                         refs: list | None = None, ref_kind: str = "image") -> dict:
+    """媒体生成主入口。kind: image | video | music。
+    refs: 参考输入(图生图/图生视频的 image,或音频参考的 audio),base64 data-url 或 URL。"""
     if kind not in ("image", "video", "music"):
         raise HTTPException(400, f"未知媒体类型: {kind}")
     if not prompt or not str(prompt).strip():
         raise HTTPException(400, "prompt 不能为空")
     job_id = _new_job(kind, str(prompt))
     if not wait:
-        asyncio.get_running_loop().create_task(_do_generate(job_id, kind, str(prompt)))
+        asyncio.get_running_loop().create_task(_do_generate(job_id, kind, str(prompt), refs, ref_kind))
         return {"ok": True, "job_id": job_id, "status": "pending"}
-    return await _do_generate(job_id, kind, str(prompt))
+    return await _do_generate(job_id, kind, str(prompt), refs, ref_kind)
 
 
-async def _do_generate(job_id: str, kind: str, prompt: str) -> dict:
+async def _do_generate(job_id: str, kind: str, prompt: str,
+                       refs: list | None = None, ref_kind: str = "image") -> dict:
     j = _jobs[job_id]
+    ref_files = []
     async with _media_sem:
         j["status"] = "generating"
         t0 = time.time()
         try:
+            # 参考输入 → 临时文件(图生图/图生视频/音频参考)
+            try:
+                ref_files = _resolve_reference_input(refs, ref_kind)
+                if ref_files:
+                    j["ref_count"] = len(ref_files)
+                    _tlog().info("[media] %s 携带参考输入 %d 个 job=%s", kind, len(ref_files), job_id)
+            except HTTPException as e:
+                j["status"] = "failed"
+                j["error"] = str(e.detail)
+                return job_snapshot(job_id)
             # 正规取号(与业务请求同路径): 粘性/健康路由 + 惰性初始化 + 信号量限流
             from main import acquire_client, release_client, _affinity_key
             client = await acquire_client(affinity_key="")
@@ -206,9 +290,14 @@ async def _do_generate(job_id: str, kind: str, prompt: str) -> dict:
             except Exception:
                 pass
             j["pid"] = pid
-            _tlog().info("[media] %s 生成开始 pid=%s job=%s prompt=%r", kind, pid, job_id, prompt[:60])
+            _tlog().info("[media] %s 生成开始 pid=%s job=%s prompt=%r refs=%d",
+                         kind, pid, job_id, prompt[:60], len(ref_files))
             try:
-                resp = await asyncio.wait_for(client.generate_content(prompt), timeout=MEDIA_GEN_TIMEOUT)
+                gen_kwargs = {}
+                if ref_files:
+                    gen_kwargs["files"] = ref_files
+                resp = await asyncio.wait_for(client.generate_content(prompt, **gen_kwargs),
+                                              timeout=MEDIA_GEN_TIMEOUT)
                 files = await _save_media_objects(resp, job_id)
             finally:
                 # 生成完成立即归还(媒体下载已由 save 内部完成,无需长期占用会话)
@@ -235,6 +324,8 @@ async def _do_generate(job_id: str, kind: str, prompt: str) -> dict:
             j["error"] = f"{type(e).__name__}: {str(e)[:200]}"
             _tlog().warning("[media] %s 生成失败 job=%s %s", kind, job_id, j["error"])
             return job_snapshot(job_id)
+        finally:
+            _cleanup_refs(ref_files)
 
 
 # ═════════ FastAPI 路由 ═════════
@@ -272,7 +363,7 @@ async def media_file(media_id: str, exp: int = 0, sig: str = ""):
 
 @router.post("/v1/images/generations", dependencies=[Depends(_require_api_key)])
 async def images_generations(body: dict, request: Request):
-    """OpenAI 兼容生图端点。body: {prompt, n=1, response_format: url|b64_json, size(忽略)}"""
+    """OpenAI 兼容生图端点。body: {prompt, n=1, response_format: url|b64_json, size(忽略), image: 参考图(图生图, base64 data-url 或 URL 或数组)}"""
     prompt = str(body.get("prompt") or "").strip()
     if not prompt:
         raise HTTPException(400, "prompt 不能为空")
@@ -281,7 +372,8 @@ async def images_generations(body: dict, request: Request):
     except Exception:
         n = 1
     rf = str(body.get("response_format") or "url").lower()
-    snap = await generate_media("image", prompt, wait=True)
+    refs = body.get("image") or body.get("images")
+    snap = await generate_media("image", prompt, wait=True, refs=refs, ref_kind="image")
     if snap.get("status") != "done":
         err = snap.get("error") or "生图失败"
         el = err.lower()
@@ -303,12 +395,13 @@ async def images_generations(body: dict, request: Request):
 
 @router.post("/v1/media/video", dependencies=[Depends(_require_api_key)])
 async def media_video(body: dict, request: Request):
-    """视频生成(Veo)。body: {prompt, wait=true}"""
+    """视频生成(Veo)。body: {prompt, wait=true, image: 参考图(图生视频首帧, base64 data-url 或 URL 或数组)}"""
     prompt = str(body.get("prompt") or "").strip()
     if not prompt:
         raise HTTPException(400, "prompt 不能为空")
     wait = bool(body.get("wait", True))
-    snap = await generate_media("video", prompt, wait=wait)
+    refs = body.get("image") or body.get("images")
+    snap = await generate_media("video", prompt, wait=wait, refs=refs, ref_kind="image")
     if wait:
         snap = _with_urls(snap, request)
         if snap.get("status") != "done":
@@ -321,12 +414,13 @@ async def media_video(body: dict, request: Request):
 
 @router.post("/v1/media/music", dependencies=[Depends(_require_api_key)])
 async def media_music(body: dict, request: Request):
-    """音乐生成(Lyria)。body: {prompt, wait=true}"""
+    """音乐生成(Lyria)。body: {prompt, wait=true, audio: 音频参考(可选)}"""
     prompt = str(body.get("prompt") or "").strip()
     if not prompt:
         raise HTTPException(400, "prompt 不能为空")
     wait = bool(body.get("wait", True))
-    snap = await generate_media("music", prompt, wait=wait)
+    refs = body.get("audio")
+    snap = await generate_media("music", prompt, wait=wait, refs=refs, ref_kind="audio")
     if wait:
         snap = _with_urls(snap, request)
         if snap.get("status") != "done":
@@ -343,7 +437,8 @@ async def media_image(body: dict, request: Request):
     prompt = str(body.get("prompt") or "").strip()
     if not prompt:
         raise HTTPException(400, "prompt 不能为空")
-    snap = await generate_media("image", prompt, wait=True)
+    refs = body.get("image") or body.get("images")
+    snap = await generate_media("image", prompt, wait=True, refs=refs, ref_kind="image")
     return _with_urls(snap, request)
 
 
