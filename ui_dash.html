@@ -428,7 +428,41 @@ input,select,textarea{color-scheme:dark;background-color:var(--bg-2)!important;c
           <div id="mdList" style="display:flex;flex-direction:column;gap:14px"><span class="hint">加载中…</span></div>
         </div>
       </div>
-    </div>
+    </div>        <div class="panel" style="margin-bottom:0">
+          <div class="acc-head"><h2>📡 API 接入信息</h2><button class="btn" onclick="mdToggleApi()">展开/收起</button></div>
+          <div id="mdApiInfo" style="display:none;margin-top:10px">
+            <div style="font-size:.78rem;color:var(--muted);margin-bottom:10px;line-height:1.6">
+              Base URL: <code style="color:var(--brand)">http://127.0.0.1:4444/v1</code> ·
+              鉴权: <code>Authorization: Bearer 你的API_KEY</code> ·
+              下载链接为签名 URL(24h 有效),可直接嵌入 img/video/audio 标签
+            </div>
+            <details open><summary style="cursor:pointer;font-weight:600;font-size:.82rem">🖼 生图(OpenAI 兼容)</summary>
+            <pre style="background:var(--surface2);border:1px solid var(--hairline);border-radius:10px;padding:10px;font-size:.72rem;overflow-x:auto;white-space:pre-wrap;margin-top:6px">POST /v1/images/generations
+{"prompt": "一只戴宇航员头盔的橘猫", "n": 1, "response_format": "url"}
+
+# 图生图(带参考图, base64 data-url 或图片 URL)
+{"prompt": "基于参考图生成新图", "image": "data:image/png;base64,..."}
+
+# 返回: {"created":..., "data": [{"url": ".../v1/media/file/xxx?exp=...&sig=..."}]}
+# response_format: "b64_json" 时返回 base64</pre></details>
+            <details><summary style="cursor:pointer;font-weight:600;font-size:.82rem;margin-top:8px">🎬 生视频(Veo)</summary>
+            <pre style="background:var(--surface2);border:1px solid var(--hairline);border-radius:10px;padding:10px;font-size:.72rem;overflow-x:auto;white-space:pre-wrap;margin-top:6px">POST /v1/media/video
+{"prompt": "一只金毛犬在花田奔跑", "wait": true}
+
+# 图生视频(参考首帧)
+{"prompt": "让画面中的元素自然运动", "wait": true, "image": "data:image/png;base64,..."}
+
+# 返回: {"status": "done", "files": [{"kind": "video", "url": "http://..."}]}
+# wait: false 时返回 job_id,用 GET /v1/media/jobs/{job_id} 轮询</pre></details>
+            <details><summary style="cursor:pointer;font-weight:600;font-size:.82rem;margin-top:8px">🎵 生音乐(Lyria)</summary>
+            <pre style="background:var(--surface2);border:1px solid var(--hairline);border-radius:10px;padding:10px;font-size:.72rem;overflow-x:auto;white-space:pre-wrap;margin-top:6px">POST /v1/media/music
+{"prompt": "轻柔的钢琴曲,雨夜巴黎", "wait": true}
+
+# 返回: {"status": "done", "files": [{"kind": "audio", "url": "http://..."}]}</pre></details>
+            <div style="margin-top:8px"><button class="btn btn-sm" onclick="mdCopyExample()">📋 复制 curl 示例</button><span id="mdCopyMsg" style="font-size:.75rem;margin-left:8px"></span></div>
+          </div>
+        </div>
+
     <!-- ═══════════ 指纹浏览器管理 ═══════════ -->
     <div class="page" id="p-fp">
       <div class="row" style="margin-bottom:16px">
@@ -1489,5 +1523,56 @@ async function mdLoad(){
 }
 // 切到媒体页时自动加载
 const _origSwitchPage = switchPage;
-switchPage = function(p){ _origSwitchPage(p); if(p === 'media') mdLoad(); };
+switchPage = function(p){ _origSwitchPage(p); if(p === 'media'){ mdLoad(); mdKindChangeUi(); } };
+// ── 媒体工坊: 参考图上传 + API 接入信息 ──
+let _mdRefDataUrl = null;
+document.addEventListener('change', function(e){
+  if(e.target && e.target.id === 'mdRefFile'){
+    const file = e.target.files && e.target.files[0];
+    if(!file){ _mdRefDataUrl = null; $('mdRefInfo').textContent=''; return; }
+    const rd = new FileReader();
+    rd.onload = function(){
+      _mdRefDataUrl = rd.result;
+      $('mdRefInfo').textContent = '✓ ' + file.name + ' (' + Math.round(file.size/1024) + ' KB)';
+      $('mdRefInfo').style.color = 'var(--green)';
+    };
+    rd.readAsDataURL(file);
+  }
+});
+function mdKindChangeUi(){ const k = $('mdKind').value; $('mdRefRow').style.display = (k === 'music') ? 'none' : 'flex'; }
+$('mdKind').addEventListener('change', mdKindChangeUi);
+function mdToggleApi(){ const el = $('mdApiInfo'); el.style.display = el.style.display === 'none' ? '' : 'none'; }
+function mdCopyExample(){
+  const kind = $('mdKind').value;
+  const ex = {
+    image: 'curl http://127.0.0.1:4444/v1/images/generations -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" -d \'{"prompt":"一只戴宇航员头盔的橘猫","n":1,"response_format":"url"}\'',
+    video: 'curl http://127.0.0.1:4444/v1/media/video -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" -d \'{"prompt":"金毛犬在花田奔跑","wait":true}\'',
+    music: 'curl http://127.0.0.1:4444/v1/media/music -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" -d \'{"prompt":"轻柔钢琴曲","wait":true}\''
+  }[kind];
+  navigator.clipboard.writeText(ex).then(() => { $('mdCopyMsg').textContent = '✓ 已复制'; setTimeout(() => $('mdCopyMsg').textContent = '', 2000); });
+}
+// mdGenerate 覆盖: 注入参考图
+const _origMdGenerateRef = mdGenerate;
+mdGenerate = async function(btn){
+  const kind = $('mdKind').value;
+  const prompt = $('mdPrompt').value.trim();
+  const msg = $('mdMsg');
+  if(!prompt){ msg.textContent='请先输入 prompt'; msg.style.color='var(--red)'; return; }
+  const goBtn = btn || $('mdGoBtn');
+  goBtn.disabled = true;
+  msg.textContent = mdKindLabel(kind) + ' 生成中(视频约 1~2 分钟)…'; msg.style.color='';
+  try{
+    const payload = {kind, prompt, wait: true};
+    if(_mdRefDataUrl && kind !== 'music') payload.image = _mdRefDataUrl;
+    const r = await fetch('/api/media/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+    const j = await r.json();
+    if(j.ok && j.status === 'done' && (j.files||[]).length){
+      msg.textContent = '✓ 生成完成(' + (j.elapsed||'?') + 's)'; msg.style.color='var(--green)';
+      $('mdPrompt').value = ''; _mdRefDataUrl = null; $('mdRefFile').value=''; $('mdRefInfo').textContent='';
+      mdLoad();
+    }else{ msg.textContent = '✗ ' + (j.error || j.detail || '生成失败'); msg.style.color='var(--red)'; }
+  }catch(e){ msg.textContent = '请求异常: ' + e; msg.style.color='var(--red)'; }
+  goBtn.disabled = false;
+};
+
 </script></body></html>
