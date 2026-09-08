@@ -728,7 +728,7 @@ async def background_verify_chat_persistence(client: GeminiClient, cid: str, sou
 	if not cid:
 		return
 
-	retry_delays = [1, 3, 8]
+	retry_delays = [2, 5, 10, 20]
 	recovered = await fetch_readable_chat_response(client, cid, retry_delays)
 	if recovered:
 		logger.debug(
@@ -762,11 +762,14 @@ async def validate_gemini_client_session(client: GeminiClient, source: str):
 		if not validation_cid:
 			raise ValueError("validation probe returned no persistent chat metadata")
 
-		recovered = await fetch_readable_chat_response(client, validation_cid, [1, 3, 8])
-		if not recovered or response_indicates_auth_failure(getattr(recovered, "text", "") or ""):
-			raise ValueError("validation probe chat was not readable from Gemini history")
-
-		logger.info("Gemini session validation succeeded using %s credentials", source)
+		recovered = await fetch_readable_chat_response(client, validation_cid, [2, 5, 10, 20])
+		if response_indicates_auth_failure(getattr(recovered, "text", "") or ""):
+			raise ValueError("validation probe returned signed-out content")
+		if not recovered:
+			# 历史写回延迟≠凭据失效: init 8 RPC+generate 已成功,仅读历史慢。不再判死账号。
+			logger.warning("Gemini history read-back delayed for %s (cid=%s); session OK, proceeding", source, validation_cid)
+		else:
+			logger.info("Gemini session validation succeeded using %s credentials", source)
 	finally:
 		if validation_cid:
 			try:
@@ -1608,7 +1611,8 @@ async def _pick_pool_account(exclude: str = "") -> str:
 		_purl = _account_proxy_url(st)
 		if _purl and _proxy_down(_purl):
 			continue
-		await _init_pool_account(st)
+		# light=True: 与启动路径一致,init 8 RPC 已含校验,跳过额外生成探针(省 5~15s 且避免误判)
+		await _init_pool_account(st, light=True)
 		if st.get("status") == "ok" and _account_has_quota(st):
 			return pid
 		_log_bridge(f"[账号池] 账号 {pid} 初始化未成功(status={st.get('status')}, err={st.get('last_error','')[:80]})", "WARNING")
@@ -1725,7 +1729,8 @@ async def _refresh_one_account_balance(st: dict):
 	try:
 		# 收紧超时: 此前 init 120s + fetch 45s,若账号凭据过期会让 running 挂 165s+(看板"一直刷新中"的根因)
 		if st.get("client") is None:
-			await asyncio.wait_for(_init_pool_account(st, light=True), timeout=45)
+			# init 内部 timeout=90 重试2次;外层 45s 必剪断 → 放宽到 75s 匹配单次 init
+			await asyncio.wait_for(_init_pool_account(st, light=True), timeout=75)
 		client = st.get("client")
 		if client is None:
 			raise RuntimeError("client 初始化失败")

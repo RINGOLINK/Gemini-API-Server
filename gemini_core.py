@@ -352,17 +352,22 @@ def proxy_admin(method: str, path: str, payload=None, timeout: int = 150) -> dic
         return {"ok": False, "error": str(e)[:200]}
 
 
+_QUICK_FAIL_LOG: dict = {}  # path -> last log time(60s 去重,启动期 4444 忙时不刷屏)
+
+
 def proxy_admin_quick(method: str, path: str, payload=None, timeout: float = 3.0) -> dict:
     """看板用短超时版: 4444 未就绪时快速失败,绝不阻塞页面(根因修复: 原 150s 超时卡死看板)。"""
     if not _ensure_admin_token():
         return {"ok": False, "error": "管理面板登录失败"}
-    import traceback
     try:
         return cb._http_json(method, f"http://127.0.0.1:{SERVER_PORT}{path}",
                              payload, {"X-Admin-Token": ADMIN_TOKEN["token"]}, timeout=timeout)
     except Exception as e:
         ADMIN_TOKEN["token"] = ""
-        app_log(f"[看板] {path} 快速失败({timeout}s): {str(e)[:80]}")
+        now = time.time()
+        if now - _QUICK_FAIL_LOG.get(path, 0) >= 60:
+            _QUICK_FAIL_LOG[path] = now
+            app_log(f"[看板] {path} 快速失败({timeout}s): {str(e)[:80]}")
         return {"ok": False, "error": str(e)[:120]}
 
 
