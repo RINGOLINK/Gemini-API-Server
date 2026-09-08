@@ -176,17 +176,17 @@ class DashHandler(BaseHTTPRequestHandler):
         elif path == "/api/dashboard":
             self._send(200, json.dumps(build_dashboard(), ensure_ascii=False))
         elif path == "/api/accounts":
-            self._send(200, json.dumps(proxy_admin("GET", "/admin/api/accounts"), ensure_ascii=False))
+            self._send(200, json.dumps(proxy_admin_quick("GET", "/admin/api/accounts"), ensure_ascii=False))
         elif path == "/api/alerts":
-            self._send(200, json.dumps(proxy_admin("GET", "/admin/api/alerts"), ensure_ascii=False))
+            self._send(200, json.dumps(proxy_admin_quick("GET", "/admin/api/alerts"), ensure_ascii=False))
         elif path == "/api/gems":
-            self._send(200, json.dumps(proxy_admin("GET", "/admin/api/gems"), ensure_ascii=False))
+            self._send(200, json.dumps(proxy_admin_quick("GET", "/admin/api/gems"), ensure_ascii=False))
         elif path == "/api/proxy-health":
-            self._send(200, json.dumps(proxy_admin("GET", "/admin/api/proxy-health"), ensure_ascii=False))
+            self._send(200, json.dumps(proxy_admin_quick("GET", "/admin/api/proxy-health"), ensure_ascii=False))
         elif path == "/api/alerts/config":
-            self._send(200, json.dumps(proxy_admin("GET", "/admin/api/alerts/config"), ensure_ascii=False))
+            self._send(200, json.dumps(proxy_admin_quick("GET", "/admin/api/alerts/config"), ensure_ascii=False))
         elif path == "/api/media/jobs":
-            self._send(200, json.dumps(proxy_admin("GET", "/admin/api/media/jobs"), ensure_ascii=False))
+            self._send(200, json.dumps(proxy_admin_quick("GET", "/admin/api/media/jobs"), ensure_ascii=False))
         else:
             self._send(404, '{"detail":"Not Found"}')
 
@@ -198,7 +198,7 @@ class DashHandler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path.startswith("/api/media/jobs/"):
             jid = path.rsplit("/", 1)[-1]
-            r = proxy_admin("DELETE", f"/admin/api/media/jobs/{jid}")
+            r = proxy_admin_quick("DELETE", f"/admin/api/media/jobs/{jid}")
             self._send(200, _json.dumps(r, ensure_ascii=False))
         else:
             self._send(404, '{"detail":"Not Found"}')
@@ -227,10 +227,10 @@ class DashHandler(BaseHTTPRequestHandler):
             r = proxy_admin("POST", f"/admin/api/accounts/{pid}/isolate", {"isolated": isolated})
             self._send(200, json.dumps(r, ensure_ascii=False))
         elif path == "/api/alerts/seen":
-            r = proxy_admin("POST", "/admin/api/alerts/seen", {})
+            r = proxy_admin_quick("POST", "/admin/api/alerts/seen", {})
             self._send(200, json.dumps(r, ensure_ascii=False))
         elif path == "/api/accounts/refresh":
-            r = proxy_admin("POST", "/admin/api/accounts/refresh", {})
+            r = proxy_admin_quick("POST", "/admin/api/accounts/refresh", {})
             self._send(200, json.dumps(r, ensure_ascii=False))
         elif path == "/api/proxy":
             self._send(200, json.dumps(save_proxy(payload), ensure_ascii=False))
@@ -238,10 +238,10 @@ class DashHandler(BaseHTTPRequestHandler):
             r = proxy_admin("POST", "/admin/api/proxy-health/test", payload)
             self._send(200, json.dumps(r, ensure_ascii=False))
         elif path == "/api/alerts/config":
-            r = proxy_admin("POST", "/admin/api/alerts/config", payload)
+            r = proxy_admin_quick("POST", "/admin/api/alerts/config", payload)
             self._send(200, json.dumps(r, ensure_ascii=False))
         elif path == "/api/alerts/test":
-            r = proxy_admin("POST", "/admin/api/alerts/test", payload)
+            r = proxy_admin_quick("POST", "/admin/api/alerts/test", payload)
             self._send(200, json.dumps(r, ensure_ascii=False))
         elif path == "/api/media/generate":
             # 媒体生成可能耗时 1~3 分钟,延长桥接超时
