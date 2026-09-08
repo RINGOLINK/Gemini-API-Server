@@ -158,6 +158,12 @@ class DashHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
+        if path == "/favicon.ico":
+            # 无图标静默返回 204,消除浏览器控制台 404 噪音
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if path in ("/", "/index.html"):
             html = (BASE_DIR / "ui_dash.html").read_text(encoding="utf-8")
             self._send(200, html, "text/html; charset=utf-8")

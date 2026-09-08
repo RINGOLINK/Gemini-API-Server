@@ -1533,7 +1533,7 @@ switchPage = function(p){ _origSwitchPage(p); if(p === 'media'){ mdLoad(); mdKin
 // ── 媒体工坊: 参考图上传 + API 接入信息 ──
 let _mdRefFiles = [];  // [{name, size, dataUrl}]
 function mdRefRender(){
-  const info = \mdRefInfo;
+  const info = $('mdRefInfo');
   info.innerHTML = '';
   if(!_mdRefFiles.length){ info.innerHTML = '<span style="font-size:.75rem;color:var(--muted)">未选择参考图</span>'; return; }
   const chips = _mdRefFiles.map(function(r, idx){
