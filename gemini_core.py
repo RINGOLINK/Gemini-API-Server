@@ -341,6 +341,20 @@ def proxy_admin(method: str, path: str, payload=None, timeout: int = 150) -> dic
         return {"ok": False, "error": str(e)[:200]}
 
 
+def proxy_admin_quick(method: str, path: str, payload=None, timeout: float = 3.0) -> dict:
+    """看板用短超时版: 4444 未就绪时快速失败,绝不阻塞页面(根因修复: 原 150s 超时卡死看板)。"""
+    if not _ensure_admin_token():
+        return {"ok": False, "error": "管理面板登录失败"}
+    import traceback
+    try:
+        return cb._http_json(method, f"http://127.0.0.1:{SERVER_PORT}{path}",
+                             payload, {"X-Admin-Token": ADMIN_TOKEN["token"]}, timeout=timeout)
+    except Exception as e:
+        ADMIN_TOKEN["token"] = ""
+        app_log(f"[看板] {path} 快速失败({timeout}s): {str(e)[:80]}")
+        return {"ok": False, "error": str(e)[:120]}
+
+
 def save_proxy(payload: dict) -> dict:
     enabled = payload.get("enabled")
     if enabled:
@@ -407,13 +421,15 @@ def read_account_cookie(pid: str) -> dict | None:
 
 # ─────────────────────────────── 看板聚合 ───────────────────────────────
 def build_dashboard() -> dict:
-    server_status = proxy_admin("GET", "/admin/api/status")
+    # 根因修复: 全部用短超时(3s)。4444 未就绪时快速失败,保留本地状态立即返回,
+    # 看板不再被 150s 阻塞卡成"检测中";联通后下次轮询自动补全。
+    server_status = proxy_admin_quick("GET", "/admin/api/status")
     accounts = scan_accounts()
-    quota = proxy_admin("GET", "/admin/api/quota")
+    quota = proxy_admin_quick("GET", "/admin/api/quota")
     with LOG_LOCK:
         bridge_logs = list(LOG_BUFFER[-100:])
     # 服务端日志 = admin web ui 的「最近日志」(请求日志:GET /v1/models 200)
-    server_logs = (proxy_admin("GET", "/admin/api/logs").get("logs") or [])[-60:]
+    server_logs = (proxy_admin_quick("GET", "/admin/api/logs").get("logs") or [])[-60:]
     if quota.get("available") and quota.get("active_account"):
         STATUS["current_account"] = quota["active_account"]
     if quota.get("client_mode"):
