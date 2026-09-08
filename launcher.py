@@ -148,9 +148,24 @@ def start_core() -> bool:
         return True
     # 探测服务端口(快速 socket):已在跑则记录实际 pid,视为已启动
     if _port_open(4444) or _port_open(4445):
-        st["core_pid"] = _find_core_pid() or st.get("core_pid", 0)
-        _save_state(st)
-        return True
+        _pid0 = _find_core_pid() or st.get("core_pid", 0)
+        # 健壮性:端口开但看板接口未就绪(旧代码/僵尸进程)→ 强杀后重启
+        if not _svc_alive(4445, "/api/dashboard"):
+            import subprocess as _sp
+            _sp.Popen(
+                ["powershell", "-NoProfile", "-Command",
+                 "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'gemini_core' } | "
+                 "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"],
+                creationflags=_sp.CREATE_NO_WINDOW, stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
+            import time as _t
+            _t.sleep(3)
+            st["core_pid"] = 0
+            _save_state(st)
+            app_log("检测到服务未就绪(旧进程残留?),已清理,重新启动")
+        else:
+            st["core_pid"] = _pid0
+            _save_state(st)
+            return True
     try:
         proc = subprocess.Popen(
             [PYTHONW, CORE_SCRIPT],
