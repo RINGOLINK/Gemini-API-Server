@@ -363,6 +363,23 @@ async def _do_generate(job_id: str, kind: str, prompt: str,
                     resp = await asyncio.wait_for(client.generate_content(prompt, **gen_kwargs),
                                                   timeout=MEDIA_GEN_TIMEOUT)
                     files = await _save_media_objects(resp, job_id)
+                # ── 会话保留策略由「功能设置-自动删除会话」开关统一接管 ──
+                # 开(默认): 成功落盘后删会话 → 网页端不堆积; 失败时保留供排查。
+                # 关: 全部保留(调试核查)。生成期间一律保留(temporary=False,断流 recovery 可用)。
+                from main import AUTO_DELETE_CHAT as _adc
+                if _adc and files:
+                    _cid = None
+                    _md = getattr(resp, "metadata", None)
+                    if _md:
+                        _cid = _md[0] if isinstance(_md, (list, tuple)) else getattr(_md, "cid", None)
+                    if not _cid:
+                        _cid = getattr(resp, "cid", "") or ""
+                    if _cid:
+                        try:
+                            await client.delete_chat(_cid)
+                            _tlog().info("[media] %s 已清理会话(auto_delete) job=%s cid=%s", kind, job_id, str(_cid)[:20])
+                        except Exception as _de:
+                            _tlog().warning("[media] 会话清理失败(不影响结果) job=%s: %s", job_id, str(_de)[:80])
             finally:
                 # 生成完成立即归还(媒体下载已由 save 内部完成,无需长期占用会话)
                 await release_client()
