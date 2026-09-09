@@ -27,7 +27,15 @@ def _get_version() -> str:
     try:
         return importlib.metadata.version("gemi2api-server")
     except importlib.metadata.PackageNotFoundError:
-        return "unknown"
+        pass
+    # 打包环境无包元数据时回退 VERSION 文件(随发行版更新)
+    try:
+        vf = Path(__file__).resolve().parent / "VERSION"
+        if vf.exists():
+            return vf.read_text(encoding="utf-8").strip() or "unknown"
+    except Exception:
+        pass
+    return "unknown"
 
 
 # 创建路由器

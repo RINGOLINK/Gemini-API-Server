@@ -34,7 +34,7 @@
 把 **Gemini 网页版**(`gemini.google.com`)反向封装成 **OpenAI 兼容 API**:
 无需官方 API Key、无需付费订阅,使用你已登录网页版的 Google 账号 Cookie 即可获得完整的对话能力。
 
-在基础反代之上,v1.2 内置了一套面向 **Agent 长任务**的完整运营能力:
+在基础反代之上,v2.0 内置了一套面向 **Agent 长任务**的完整运营能力:
 
 - **多账号池**:多个 Google 账号组成资源池,额度用尽自动切换,单账号风控不影响整体可用性
 - **健康路由**:每个账号按 TTFB / 配额 / 停滞 / 错误四维打分,请求自动路由到健康节点
@@ -63,6 +63,8 @@ DSH / Cline / 任意 OpenAI 客户端
 ```
 
 ## 功能总览
+
+**v2.0 亮点**:媒体生成闭环(生图/生视频/生音乐 + 参考输入 + 异步任务化 + 看板媒体工坊)、代理上传回退、「自动删除会话」开关统一接管会话保留、看板启动宽限期与轮询稳定性加固。详见 [CHANGELOG-v2.0](CHANGELOG-v2.0.md)。
 
 ### 核心 API
 
@@ -395,6 +397,47 @@ curl http://127.0.0.1:4444/v1/media/video \
 | `GEMINI_MEDIA_TIMEOUT` | `280` | 单次生成超时(秒) |
 | `GEMINI_MEDIA_DL_TIMEOUT` | `240` | 单文件下载+轮询超时(秒) |
 | `GEMINI_MEDIA_CONCURRENCY` | `2` | 全局媒体生成并发 |
+
+### 参考输入(图生图 / 图生视频首帧)— v2.0 新增
+
+三个媒体端点与看板媒体工坊均支持参考输入,生图/生视频用 `image`,音乐用 `audio`:
+
+```bash
+# 图生图: image 传 base64 data-url 或图片 URL(支持数组=多张参考)
+curl http://127.0.0.1:4444/v1/images/generations \
+  -H "Authorization: Bearer sk-xxx" -H "Content-Type: application/json" \
+  -d '{"prompt": "基于参考图生成新图,保持色调", "image": "data:image/png;base64,..."}'
+
+# 图生视频: 参考图作首帧(建议 wait:false 异步)
+curl http://127.0.0.1:4444/v1/media/video \
+  -H "Authorization: Bearer sk-xxx" -H "Content-Type: application/json" \
+  -d '{"prompt": "让画面中的元素自然流动", "wait": false, "image": "data:image/png;base64,..."}'
+```
+
+- **代理上传回退**:直连 `content-push.googleapis.com` 的上传在部分网络被运营商掐断;服务自动探测本地代理(`GEMINI_UPLOAD_PROXY` 或 127.0.0.1:12000/7890/10809/1080)经代理上传参考图,生成仍走直连会话(规避代理 IP 风控)
+- **视频异步化**:视频建议 `wait: false`——立即返回 `job_id`,任务列表/轮询接口自动跟踪;上游 3 分钟长生成的流式断连不再杀死请求,断流自动重试一次
+- **长生成 recovery**:账号 `watchdog_timeout` 300s,断流后从会话历史找回已生成结果
+
+### 会话保留开关(自动删除会话)— v2.0 新增
+
+「功能设置 → 自动删除会话」一个开关统一接管 **chat 与全部媒体任务**:
+
+| 开关 | 行为 |
+|---|---|
+| **开**(日常推荐) | 任务成功落盘后自动删除 Gemini 会话,网页端不堆积;失败的任务保留会话供排查 |
+| **关**(调试) | 全部会话保留,可随时在网页端人工核查每次生成 |
+
+生成期间一律使用持久会话(断流 recovery 需要从历史找回结果),开关动态生效无需重启。
+
+### 看板媒体工坊 — v2.0 新增
+
+管理看板新增「媒体工坊」页:生图/生视频/生音乐统一入口——
+
+- **参考图上传**:多选/追加,缩略图 chip 单张删除;生视频自动异步提交
+- **API 接入信息面板**:三端点参数、鉴权、签名下载说明与 curl 示例一键复制
+- **最近任务**:自动刷新进度(异步视频实时跟踪),失败展示完整错误,单任务删除
+
+## Docker 部署
 ## Docker 部署
 
 ```bash
