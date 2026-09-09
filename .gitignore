@@ -32,3 +32,5 @@ app_profile/
 # keep empty secrets dir in repo
 !secrets/.gitkeep
 
+
+_test_*.py
