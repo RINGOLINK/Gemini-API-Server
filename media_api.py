@@ -342,8 +342,12 @@ async def _do_generate(job_id: str, kind: str, prompt: str,
                             used_proxy_upload = True
                             _tlog().info("[media] 参考图经代理上传 %d 个(proxy=%s)", len(req_data), _pxy)
                             resp = None
+                            # 关键: temporary=False,与纯文本路径(generate_content 不传,库默认 False)一致
+                            # → 会话保留在网页端历史,recovery read_chat 才能找回结果。
+                            # 此前硬编码 True → 临时会话: 网页端无会话 + 断流后 recovery 读不到 → timed out。
+                            # (TEMPORARY_CHAT=true 是 chat 端点配置,媒体路径与此无关)
                             async for _out in client._generate(prompt, req_file_data=req_data,
-                                                               temporary=True):
+                                                               temporary=False):
                                 resp = _out
                             files = await _save_media_objects(resp, job_id)
                         except Exception as _ue:
