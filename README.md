@@ -24,6 +24,7 @@
 
 - [这是什么](#这是什么)
 - [功能总览](#功能总览)
+- [Gemini 4 Argon 模型支持](#gemini-4-argon-模型支持v21)
 - [架构](#架构)
 - [快速开始](#快速开始)
 - [配置参考](#配置参考)
@@ -74,7 +75,7 @@ DSH / Cline / 任意 OpenAI 客户端
 
 ## 功能总览
 
-**v2.0 亮点**:媒体生成闭环(生图/生视频/生音乐 + 参考输入 + 异步任务化 + 看板媒体工坊)、代理上传回退、「自动删除会话」开关统一接管会话保留、看板启动宽限期与轮询稳定性加固。详见 [CHANGELOG-v2.0](CHANGELOG-v2.0.md)。
+**v2.1 亮点**:动态发现并精确路由 Gemini 4 Argon 等网页登录新型号(不再静默回落旧模型);媒体生成闭环(生图/生视频/生音乐 + 参考输入 + 异步任务化 + 看板媒体工坊)、代理上传回退、「自动删除会话」统一接管。详见 [CHANGELOG-v2.1](CHANGELOG-v2.1.md)。
 
 ### 核心 API
 
@@ -225,6 +226,25 @@ python gemini_core.py
 | `PARALLEL_TOOL_CALLS` | `true` | 允许单轮多工具调用 |
 
 </details>
+
+## Gemini 4 Argon 模型支持(v2.1)
+
+Google 已将 **Gemini 4 Argon** 开放到 Gemini 网页版的符合条件订阅账号。项目使用 `gemini_webapi` 从每个已登录账号的网页会话**动态发现实际可用模型**，因此不硬编码 Google 内部 model ID：
+
+1. 先登录一个在 Gemini 网页端模型选择器中确实能看到 Gemini 4 Argon 的账号，并在「账号管理」推送/刷新该账号 Cookie。
+2. 查询 `GET http://127.0.0.1:4444/v1/models`，确认返回包含 Argon 的实际 `id` / `display_name`。
+3. 将返回的实际 `id` 作为 OpenAI `model` 字段使用；也可使用 `gemini-4-argon` / `gemini-4-argon-latest` 友好别名(仅当账号动态列表检测到 Argon 时生效)。
+
+```bash
+curl http://127.0.0.1:4444/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gemini-4-argon","messages":[{"role":"user","content":"你好"}]}'
+```
+
+**重要**:模型可见性由 Google 账号订阅、地区及网页端 rollout 决定。若当前账号的 `/v1/models` 没列出 Argon，服务会对 Argon 请求返回明确 `400` 和当前可用模型列表，**不会静默降级到 Flash/Pro**。当前开发用旧 Cookie 会话未发现 Argon，需用网页端已开放 Argon 的账号刷新 Cookie 后再验证。此接入复用网页订阅会话，不等同于 Gemini Developer API 的官方 API Key/模型名。
+
+---
 
 ## API 使用
 

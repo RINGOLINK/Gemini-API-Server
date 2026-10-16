@@ -1,6 +1,6 @@
 [project]
 name = "gemini-api-server"
-version = "1.2.0"
+version = "2.1.0"
 license = { text = "AGPL-3.0-only" }
 description = "OpenAI-compatible Gemini web reverse proxy with fingerprint browser pool, health routing, context compression and tool-call protocol"
 readme = "README.md"

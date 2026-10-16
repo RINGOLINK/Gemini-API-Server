@@ -1176,81 +1176,100 @@ async def error_handling(request: Request, call_next):
 
 
 # Get list of available models
-# 基础模型(plus/advanced 为同模型档位变体,隐藏)
+# 固定别名保证旧客户端兼容;账号动态发现模型(如 Gemini 4 Argon)追加到同一列表。
 BASE_MODELS = ("gemini-pro", "gemini-flash", "gemini-flash-lite")
 
 
 @app.get("/v1/models")
 async def list_models():
-	"""返回可用模型列表:仅暴露 3 个基础模型(plus/advanced 为档位变体,隐藏但仍可用)"""
+	"""返回固定兼容别名 + 当前账号网页会话实际可选择的动态模型。"""
 	global gemini_client
 	try:
 		gemini_client = await get_gemini_client()
 	except Exception:
-		pass  # 客户端未就绪时仍返回基础列表
+		pass
 	now = int(datetime.now(tz=timezone.utc).timestamp())
 	data = []
 	seen = set()
 	custom_model_registry = get_custom_model_registry()
-
 	for custom_model in custom_model_registry.values():
 		model_name = custom_model["model_name"]
 		seen.add(model_name.lower())
 		data.append({"id": model_name, "object": "model", "created": now, "owned_by": "google-gemini-web"})
-
 	if DISABLE_BUILTIN_MODELS:
 		return {"object": "list", "data": data}
-
-	# 从账号动态发现真实展示名(Google 升级换代时自动跟随)
-	display_names = {}
+	discovered = []
 	try:
 		if gemini_client is not None:
-			for m in gemini_client.list_models() or []:
-				display_names[getattr(m, "model_name", "")] = getattr(m, "display_name", "")
-	except Exception:
-		pass
-
+			discovered = [m for m in (gemini_client.list_models() or []) if getattr(m, "is_available", True)]
+	except Exception as e:
+		logger.warning("动态模型列表读取失败: %s", str(e)[:120])
+	for m in discovered:
+		model_name = str(getattr(m, "model_name", "") or "").strip()
+		if not model_name or model_name.lower() in seen:
+			continue
+		seen.add(model_name.lower())
+		display = str(getattr(m, "display_name", "") or "").strip()
+		desc = str(getattr(m, "description", "") or "").strip()
+		item = {"id": model_name, "object": "model", "created": now, "owned_by": "google-gemini-web", "context_length": 245000}
+		if display:
+			item["display_name"] = display
+			item["description"] = display + (f" | {desc}" if desc else "")
+		elif desc:
+			item["description"] = desc
+		aliases = list(getattr(m, "aliases", []) or [])
+		if aliases:
+			item["aliases"] = aliases
+		data.append(item)
+		if "gemini 4 argon" in (display + " " + model_name).lower():
+			for alias in ("gemini-4-argon", "gemini-4-argon-latest"):
+				if alias not in seen:
+					seen.add(alias)
+					data.append({"id": alias, "object": "model", "created": now, "owned_by": "google-gemini-web", "description": f"Alias -> {model_name} ({display})", "context_length": 245000})
 	for name in BASE_MODELS:
 		if name.lower() in seen:
 			continue
-		item = {
-			"id": name,
-			"object": "model",
-			"created": now,
-			"owned_by": "google-gemini-web",
-			"context_length": 245000,
-		}
-		dn = display_names.get(name)
-		desc_parts = []
-		if dn:
-			desc_parts.append(f"真实模型: {dn}")
-		desc_parts.append("最大有效上下文: 245K tokens (980K 字符)")
-		item["description"] = " | ".join(desc_parts)
-		data.append(item)
+		data.append({"id": name, "object": "model", "created": now, "owned_by": "google-gemini-web", "context_length": 245000, "description": "最大有效上下文: 245K tokens (980K 字符)"})
 	return {"object": "list", "data": data}
 
 
 # Helper to convert between Gemini and OpenAI model names
-def map_model_name(openai_model_name: str) -> Union[Model, Dict[str, Dict[str, str]]]:
-	"""根据模型名称字符串查找匹配的 Model 枚举值或自定义模型配置。
-
-	优先命中自定义模型注册表，这样可以覆写 gemini_webapi 内置模型头。
-	找不到自定义配置时，再精确匹配 Model 枚举（大小写不敏感）；
-	仍找不到则返回第一个非 UNSPECIFIED 模型。
-	"""
-	normalized = openai_model_name.lower()
+def map_model_name(openai_model_name: str, client=None) -> Union[Model, Dict[str, Dict[str, str]], Any]:
+	"""按请求所属账号的动态网页模型列表精确解析;避免 Gemini 4 请求静默回落默认模型。"""
+	normalized = (openai_model_name or "").strip().lower()
 	custom_model_registry = get_custom_model_registry()
-
 	if normalized in custom_model_registry:
 		return custom_model_registry[normalized]
-
-	# 精确匹配 Model 枚举
+	if client is not None:
+		try:
+			return client.resolve_model(openai_model_name)
+		except (ValueError, KeyError):
+			pass
+		except Exception as e:
+			logger.warning("动态模型解析异常(%s): %s", openai_model_name, str(e)[:100])
+		# Friendly Argon aliases map to the real account-discovered object; never guess internal IDs.
+		if normalized in {"gemini-4", "gemini-4-argon", "gemini-4-argon-latest", "gemini 4 argon", "argon"}:
+			try:
+				for _m in client.list_models() or []:
+					_label = (str(getattr(_m, "model_name", "")) + " " +
+							 str(getattr(_m, "display_name", "")) + " " +
+							 " ".join(getattr(_m, "aliases", []) or [])).lower()
+					if "argon" in _label and "4" in _label:
+						return _m
+			except Exception as e:
+				logger.warning("Gemini 4 Argon 别名解析失败: %s", str(e)[:100])
 	for m in Model:
 		model_name = m.model_name if hasattr(m, "model_name") else str(m)
 		if normalized == model_name.lower():
 			return m
-
-	# 找不到精确匹配，返回第一个非 UNSPECIFIED 的模型
+	if "gemini-4" in normalized or "argon" in normalized:
+		available = []
+		try:
+			available = [getattr(m, "model_name", str(m)) for m in (client.list_models() or [])]
+		except Exception:
+			pass
+		detail = ", ".join(available) if available else "当前会话未返回动态模型列表"
+		raise HTTPException(status_code=400, detail=f"请求的模型 '{openai_model_name}' 未在当前 Gemini 网页账号的可用模型中发现;不会回落到其他模型。当前可用: {detail}")
 	for m in Model:
 		if m is not Model.UNSPECIFIED:
 			return m
@@ -2995,7 +3014,7 @@ async def create_chat_completion(
 		)
 
 		# 获取适当的模型
-		model = map_model_name(request.model)
+		model = map_model_name(request.model, client=gemini_client)
 		model_debug_info = get_effective_model_debug_info(model)
 		logger.info(
 			"Resolved Gemini model: requested=%s effective=%s headers=%s",
