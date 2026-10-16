@@ -17,7 +17,7 @@ v2.1 adds account-aware dynamic discovery and routing for newly launched Gemini 
 
 - 当前依赖 `gemini_webapi 2.1.1` 已是 PyPI 最新版，支持从 Gemini 网页会话动态发现模型并按 `model_id` 构造请求头，无需依赖库更新/猜测内部 ID
 - Google 官方于 2026-10-13 发布 Gemini 4 Argon，并宣布向 Gemini app 的 Google AI Pro / Ultra 用户开放；网页反代能否选择取决于账号当前网页会话返回的动态模型注册表
-- 本次开发环境当前账号会话只返回 `3.5 Flash-Lite`，且旧 Cookie 会话出现过 UNAUTHENTICATED，因此本地暂无法完成 Argon 真模型端到端调用验证。刷新/重新推送一个在 Gemini 网页端已看到 Argon 的账号 Cookie 后，`GET /v1/models` 会动态列出它；若仍未列出，服务会明确拒绝 Argon 请求而不会冒充支持
+- **实测通过(2026-10-17)**:刷新 Gemini 网页 Cookie 后，`GET /v1/models` 返回 `id=gemini-argon`, `display_name=4 Argon`；通过本项目 `model=gemini-4-argon` 发起真实 chat completion，HTTP 200，约 45.4s 返回 `GEMINI4_ARGON_OK`。
 
 ## English
 
@@ -32,4 +32,4 @@ v2.1 adds account-aware dynamic discovery and routing for newly launched Gemini 
 
 - Installed `gemini_webapi 2.1.1` is the latest PyPI release and already supports runtime model discovery and model-ID-based headers.
 - Google announced Gemini 4 Argon on 2026-10-13 and says it is available in the Gemini app to Google AI Pro / Ultra subscribers; web-proxy availability depends on the model registry returned to the signed-in account.
-- The current development account only exposes 3.5 Flash-Lite and its stored cookie reported UNAUTHENTICATED during a fresh probe, so a real Argon end-to-end request could not be verified in this environment. Refresh/push a cookie from an account whose Gemini app model picker shows Argon, then `/v1/models` will advertise it automatically.
+- **Live verification passed (2026-10-17)**: after refreshing the Gemini web Cookie, `GET /v1/models` returned `id=gemini-argon`, `display_name=4 Argon`; a real chat completion using `model=gemini-4-argon` returned HTTP 200 in about 45.4s with `GEMINI4_ARGON_OK`.

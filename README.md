@@ -231,9 +231,9 @@ python gemini_core.py
 
 Google 已将 **Gemini 4 Argon** 开放到 Gemini 网页版的符合条件订阅账号。项目使用 `gemini_webapi` 从每个已登录账号的网页会话**动态发现实际可用模型**，因此不硬编码 Google 内部 model ID：
 
-1. 先登录一个在 Gemini 网页端模型选择器中确实能看到 Gemini 4 Argon 的账号，并在「账号管理」推送/刷新该账号 Cookie。
-2. 查询 `GET http://127.0.0.1:4444/v1/models`，确认返回包含 Argon 的实际 `id` / `display_name`。
-3. 将返回的实际 `id` 作为 OpenAI `model` 字段使用；也可使用 `gemini-4-argon` / `gemini-4-argon-latest` 友好别名(仅当账号动态列表检测到 Argon 时生效)。
+1. 在 Gemini 网页模型选择器中确认账号可见 Gemini 4 Argon，并在「账号管理」推送该账号最新 Cookie。
+2. 查询 `GET http://127.0.0.1:4444/v1/models`：实测该账号返回 `id=gemini-argon`、`display_name=4 Argon`。
+3. `model` 可用实际 ID `gemini-argon`，或友好别名 `gemini-4-argon` / `gemini-4-argon-latest`。本项目已用 `gemini-4-argon` 完成真实 chat 请求验证(HTTP 200，约 45 秒返回)。
 
 ```bash
 curl http://127.0.0.1:4444/v1/chat/completions \
@@ -242,7 +242,7 @@ curl http://127.0.0.1:4444/v1/chat/completions \
   -d '{"model":"gemini-4-argon","messages":[{"role":"user","content":"你好"}]}'
 ```
 
-**重要**:模型可见性由 Google 账号订阅、地区及网页端 rollout 决定。若当前账号的 `/v1/models` 没列出 Argon，服务会对 Argon 请求返回明确 `400` 和当前可用模型列表，**不会静默降级到 Flash/Pro**。当前开发用旧 Cookie 会话未发现 Argon，需用网页端已开放 Argon 的账号刷新 Cookie 后再验证。此接入复用网页订阅会话，不等同于 Gemini Developer API 的官方 API Key/模型名。
+**重要**:模型可见性由 Google 账号订阅、地区及网页端 rollout 决定。若当前账号的 `/v1/models` 没列出 Argon，服务会对 Argon 请求返回明确 `400` 和当前可用模型列表，**不会静默降级到 Flash/Pro**。此接入复用 Gemini 网页订阅会话，不等同于 Gemini Developer API 的官方 API Key/模型名。
 
 ---
 
